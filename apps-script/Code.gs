@@ -179,6 +179,7 @@ function doGet(e) {
 
       var headers2 = data2[0];
       var deptIdx = headers2.indexOf('작성본부');
+      if (deptIdx < 0) deptIdx = 1; // B열(본부) fallback
       var titleIdx = headers2.indexOf('과제제목');
       var asIsIdx = headers2.indexOf('AS-IS');
       var toBeIdx = headers2.indexOf('TO-BE');
@@ -196,7 +197,7 @@ function doGet(e) {
       for (var r = 1; r < data2.length; r++) {
         var row2 = data2[r];
         var dept2 = deptIdx >= 0 && row2[deptIdx] != null ? String(row2[deptIdx]).trim() : '';
-        if (filterDept2 && dept2 !== filterDept2) continue;
+        if (filterDept2 && (dept2 || '').toLowerCase() !== filterDept2.toLowerCase()) continue;
 
         var title2 = titleIdx >= 0 && row2[titleIdx] != null ? String(row2[titleIdx]).trim() : '';
         if (!title2) continue;
@@ -297,19 +298,18 @@ function doGet(e) {
     var wfCol = headers.indexOf('WorkflowSteps') >= 0 ? headers.indexOf('WorkflowSteps') : headers.indexOf('워크플로우');
     var taskCol = headers.indexOf('TaskCandidates') >= 0 ? headers.indexOf('TaskCandidates') : (headers.indexOf('과제후보') >= 0 ? headers.indexOf('과제후보') : (headers.indexOf('과제목록') >= 0 ? headers.indexOf('과제목록') : 7)); // H열 fallback
     var createdCol = headers.indexOf('CreatedAt') >= 0 ? headers.indexOf('CreatedAt') : headers.indexOf('제출일시');
-    if (deptCol < 0) deptCol = 0; // A열(제출본부) 기준 fallback
+    if (deptCol < 0) deptCol = 1; // B열(본부) fallback
     if (nameCol < 0) nameCol = 2; // C열(제출자) 기준 fallback
     if (deptCol < 0) return jsonResponse({ error: '시트에 Department 또는 제출본부 컬럼이 없습니다.' }, 500);
 
-    var filterDept = (department || '').toLowerCase();
+    var filterDept = (department || '').trim().toLowerCase();
     for (var i = 1; i < data.length; i++) {
       var row = data[i];
       var rowType = typeCol >= 0 && row[typeCol] != null ? String(row[typeCol]).trim() : '사전과제';
       if (typeCol >= 0 && rowType !== '사전과제') continue;
       
-      var rowDept = row[deptCol] ? String(row[deptCol]).trim() : '';
-      // filterDept가 있으면 필터링, 없으면 전체 조회 (단, 샘플 제외)
-      if (filterDept && rowDept.toLowerCase() !== filterDept) continue;
+      var rowDept = (deptCol >= 0 && row[deptCol] != null ? String(row[deptCol]).trim() : '').toLowerCase();
+      if (filterDept && rowDept !== filterDept) continue;
 
       // 워크숍 설계 시 사용한 테스트/샘플 데이터는 세션 화면에 노출하지 않도록 필터링
       var titleVal = titleCol >= 0 && row[titleCol] != null ? String(row[titleCol]).trim() : '';
