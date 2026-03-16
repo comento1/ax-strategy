@@ -83,15 +83,21 @@
     var container = document.getElementById('workflowList');
     if (!container) return;
     var steps = state.prework.workflowSteps.slice().sort(function (a, b) { return (a.order || 0) - (b.order || 0); });
+    if (steps.length === 0) {
+      container.innerHTML = '<div class="wf-empty-hint">아직 단계가 없습니다. 아래 버튼을 클릭해 워크플로우를 입력해주세요.</div>';
+      return;
+    }
     container.innerHTML = steps.map(function (s, i) {
       var tag = s.aiTag === 'review' ? 'neutral-tag tag-review' : 'tag-ai';
       var tagText = s.aiTag === 'review' ? '검토 필요' : 'AI 적용 가능';
       return '<div class="wf-card" data-wf-id="' + s.id + '">' +
         '<div class="step-n">' + (i + 1) + '</div>' +
         '<div style="flex:1"><input type="text" class="wf-input-title" placeholder="단계 제목 (예: 외부 시장 데이터 수집)" value="' + escapeHtml(s.title || '') + '" data-id="' + s.id + '" data-field="title"/><textarea class="wf-input-desc" placeholder="이 단계에서 하는 일, 사용 데이터/시스템, 유의사항 등을 자유롭게 적어주세요." data-id="' + s.id + '" data-field="desc">' + escapeHtml(s.desc || '') + '</textarea></div>' +
+        '<div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">' +
         '<span class="tag ' + tag + '">' + tagText + '</span>' +
         '<button type="button" class="btn btn-sm" data-action="toggle-wf" data-id="' + s.id + '">태그</button>' +
-        '<button type="button" class="btn btn-sm" data-action="del-wf" data-id="' + s.id + '">삭제</button></div>';
+        '<button type="button" class="btn btn-sm" data-action="del-wf" data-id="' + s.id + '">삭제</button>' +
+        '</div></div>';
     }).join('');
     container.querySelectorAll('[data-action="toggle-wf"]').forEach(function (btn) {
       btn.addEventListener('click', function () {
@@ -119,6 +125,7 @@
     var container = document.getElementById('taskCandidateList');
     if (!container) return;
     var list = state.prework.taskCandidates;
+    // 빈 항목이 없으면 기본 1개 생성
     if (!list || list.length === 0) {
       list = [{
         id: state.prework._placeholderTaskId || (state.prework._placeholderTaskId = id()),
@@ -131,9 +138,14 @@
       var prioClass = i === 0 ? 'prio-1' : 'prio-n';
       var prioText = '후보 ' + (i + 1);
       return '<div class="task-card" data-task-id="' + t.id + '">' +
-        '<div class="task-dot"></div><div style="flex:1"><input type="text" class="task-input-title" placeholder="과제 제목" value="' + escapeHtml(t.title || '') + '" data-id="' + t.id + '" data-field="title"/><input type="text" class="task-input-desc" placeholder="설명" value="' + escapeHtml(t.desc || '') + '" data-id="' + t.id + '" data-field="desc"/></div>' +
+        '<div class="task-dot"></div><div style="flex:1">' +
+        '<input type="text" class="task-input-title" placeholder="과제 제목" value="' + escapeHtml(t.title || '') + '" data-id="' + t.id + '" data-field="title"/>' +
+        '<textarea class="task-input-desc" placeholder="과제 설명: 어떤 문제를, AI로 어떻게 해결하는지 간략히 적어주세요." data-id="' + t.id + '" data-field="desc">' + escapeHtml(t.desc || '') + '</textarea>' +
+        '</div>' +
+        '<div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">' +
         '<span class="prio-badge ' + prioClass + '">' + prioText + '</span>' +
-        '<button type="button" class="btn btn-sm" data-action="del-task" data-id="' + t.id + '">삭제</button></div>';
+        '<button type="button" class="btn btn-sm" data-action="del-task" data-id="' + t.id + '">삭제</button>' +
+        '</div></div>';
     }).join('');
     container.querySelectorAll('[data-action="del-task"]').forEach(function (btn) {
       btn.addEventListener('click', function () {
@@ -149,6 +161,7 @@
         if (t) { t[inp.getAttribute('data-field')] = inp.value; saveState(); }
       });
     });
+    enhanceAutoResizeTextareas(container);
   }
 
   function renderQuestionList() {
@@ -168,7 +181,7 @@
     if (!el) return;
     el.style.height = 'auto';
     var h = el.scrollHeight;
-    if (!h || h < 40) h = 40;
+    if (!h || h < 80) h = 80;
     el.style.height = h + 'px';
   }
 
@@ -182,12 +195,34 @@
     });
   }
 
+  // ----- 워크플로우 예시 토글 -----
+  function initWfExampleToggle() {
+    var btn = document.getElementById('btnShowWfExample');
+    var panel = document.getElementById('wfExamplePanel');
+    if (!btn || !panel) return;
+    btn.addEventListener('click', function () {
+      var hidden = panel.hasAttribute('hidden');
+      if (hidden) {
+        panel.removeAttribute('hidden');
+        btn.querySelector('.btn-example-icon').textContent = '✅';
+      } else {
+        panel.setAttribute('hidden', '');
+        btn.querySelector('.btn-example-icon').textContent = '📋';
+      }
+    });
+  }
+
   // ----- 사전과제 이벤트 -----
   function addWfStep() {
     var order = state.prework.workflowSteps.length;
-    state.prework.workflowSteps.push({ id: id(), order: order, title: '새 단계', desc: '', aiTag: 'ai' });
+    state.prework.workflowSteps.push({ id: id(), order: order, title: '', desc: '', aiTag: 'ai' });
     renderWorkflowList();
     saveState();
+    // 마지막 카드로 스크롤
+    setTimeout(function () {
+      var cards = document.querySelectorAll('.wf-card');
+      if (cards.length) cards[cards.length - 1].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 60);
   }
 
   function addTaskCandidate() {
@@ -195,6 +230,10 @@
     renderTaskCandidateList();
     renderSession1ICE();
     saveState();
+    setTimeout(function () {
+      var cards = document.querySelectorAll('.task-card');
+      if (cards.length) cards[cards.length - 1].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 60);
   }
 
   function submitQuestion() {
@@ -208,11 +247,78 @@
     saveState();
   }
 
+  // ----- AI 과제 제안 -----
+  function handleAISuggest() {
+    var steps = state.prework.workflowSteps.filter(function (s) { return s.title || s.desc; });
+    var area = areas.find(function (a) { return a.id === state.prework.selectedDomainId; });
+    var resultEl = document.getElementById('aiSuggestResult');
+    if (!resultEl) return;
+
+    if (steps.length === 0) {
+      resultEl.removeAttribute('hidden');
+      resultEl.innerHTML = '<strong>⚠️ 먼저 1-2단계에서 워크플로우 단계를 입력해주세요.</strong>';
+      return;
+    }
+
+    // 워크플로우 기반 AI 제안 생성 (로컬 로직)
+    var suggestions = [];
+    steps.forEach(function (s, i) {
+      var title = s.title || '';
+      var desc = s.desc || '';
+      var combined = (title + ' ' + desc).toLowerCase();
+
+      if (combined.match(/수집|다운로드|크롤|스크랩/)) {
+        suggestions.push({ title: title + ' 자동화', desc: 'AI 기반 데이터 수집 및 정제 자동화로 수작업 시간을 단축합니다.' });
+      } else if (combined.match(/분석|검토|검증|평가/)) {
+        suggestions.push({ title: title + ' AI 보조 분석', desc: 'AI를 활용해 대량 데이터를 빠르게 분석하고 인사이트를 도출합니다.' });
+      } else if (combined.match(/보고|리포트|작성|문서|기획/)) {
+        suggestions.push({ title: title + ' 문서 초안 생성', desc: '반복적인 보고서·문서 작성을 AI 초안 생성으로 효율화합니다.' });
+      } else if (combined.match(/배분|할당|스케줄|계획/)) {
+        suggestions.push({ title: title + ' 최적화', desc: 'AI 알고리즘으로 자원 배분 및 일정 계획을 자동 최적화합니다.' });
+      } else {
+        suggestions.push({ title: title + ' AI 지원', desc: '이 단계에서 AI를 활용해 업무 효율과 정확도를 높일 수 있습니다.' });
+      }
+    });
+
+    // 중복 제거 및 최대 3개
+    suggestions = suggestions.slice(0, 3);
+
+    resultEl.removeAttribute('hidden');
+    resultEl.innerHTML =
+      '<p style="font-weight:700;margin:0 0 10px;color:#4c1d95;">✨ AI 과제 제안 (워크플로우 기반 자동 도출)</p>' +
+      suggestions.map(function (s, i) {
+        return '<div style="margin-bottom:10px;padding:10px 12px;background:#fff;border:1px solid #c4b5fd;border-radius:8px;">' +
+          '<p style="font-weight:700;margin:0 0 3px;font-size:13px;">💡 ' + escapeHtml(s.title) + '</p>' +
+          '<p style="margin:0;font-size:12px;color:#6d28d9;">' + escapeHtml(s.desc) + '</p>' +
+          '<button type="button" data-suggest-idx="' + i + '" class="btn btn-sm" style="margin-top:8px;background:#ede9fe;border-color:#c4b5fd;color:#4c1d95;">+ 과제 후보에 추가</button>' +
+          '</div>';
+      }).join('') +
+      '<p style="font-size:11px;color:#7c3aed;margin:6px 0 0;">※ 워크플로우 내용을 기반으로 AI가 자동 도출한 제안입니다. 내용을 검토 후 추가해주세요.</p>';
+
+    resultEl.querySelectorAll('[data-suggest-idx]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var idx = parseInt(btn.getAttribute('data-suggest-idx'));
+        var s = suggestions[idx];
+        if (s) {
+          state.prework.taskCandidates.push({ id: id(), title: s.title, desc: s.desc });
+          renderTaskCandidateList();
+          renderSession1ICE();
+          saveState();
+          btn.textContent = '✓ 추가됨';
+          btn.disabled = true;
+          btn.style.background = '#dcfce7';
+          btn.style.borderColor = '#86efac';
+          btn.style.color = '#15803d';
+        }
+      });
+    });
+  }
+
   // ----- 세션1 -----
   function getTasksForICE() {
     return state.prework.taskCandidates.concat(
-      (state.session2.extraA || []).map(function (t) { return { id: t.id, title: t.title, desc: t.desc, source: 'extraA'; }; }),
-      (state.session2.extraB || []).map(function (t) { return { id: t.id, title: t.title, desc: t.desc, source: 'extraB'; }; })
+      (state.session2.extraA || []).map(function (t) { return { id: t.id, title: t.title, desc: t.desc, source: 'extraA' }; }),
+      (state.session2.extraB || []).map(function (t) { return { id: t.id, title: t.title, desc: t.desc, source: 'extraB' }; })
     ).filter(function (t) { return t.id; });
   }
 
@@ -241,6 +347,36 @@
     return false;
   }
 
+  // ─── 워크플로우 참고 패널 (세션1 과제 후보 목록 섹션) ───
+  function buildWfReferenceToggle(targetEl) {
+    if (!targetEl) return;
+    var steps = state.prework.workflowSteps.slice().sort(function (a, b) { return (a.order || 0) - (b.order || 0); });
+    if (steps.length === 0) return;
+
+    var toggler = document.createElement('button');
+    toggler.type = 'button';
+    toggler.className = 'wf-reference-toggle';
+    toggler.innerHTML = '📝 참고: 작성한 워크플로우 <span class="wf-ref-arrow">▼</span>';
+
+    var panel = document.createElement('div');
+    panel.className = 'wf-reference-panel';
+    panel.style.display = 'none';
+    panel.innerHTML = '<ol>' +
+      steps.map(function (s) {
+        return '<li><strong>' + escapeHtml(s.title || '(제목 없음)') + '</strong>' +
+          (s.desc ? '<br/><span style="color:var(--color-text-tertiary);font-size:11px;">' + escapeHtml(s.desc) + '</span>' : '') + '</li>';
+      }).join('') + '</ol>';
+
+    toggler.addEventListener('click', function () {
+      var open = panel.style.display !== 'none';
+      panel.style.display = open ? 'none' : 'block';
+      toggler.classList.toggle('open', !open);
+    });
+
+    targetEl.insertBefore(toggler, targetEl.firstChild);
+    targetEl.insertBefore(panel, targetEl.children[1]);
+  }
+
   function renderDepartmentPreworkList(list) {
     var container = document.getElementById('departmentPreworkList');
     if (!container) return;
@@ -249,6 +385,12 @@
       return;
     }
     var safe = list.filter(function (item) { return !isSamplePreworkItem(item); });
+    // ─── 요청 7: 본부 데이터 격리 — 현재 본부와 일치하는 항목만 표시 ───
+    if (currentDepartment) {
+      safe = safe.filter(function (item) {
+        return !item.department || item.department === currentDepartment;
+      });
+    }
     if (safe.length === 0) {
       container.innerHTML = '<p class="section-sub">현재 본부에 대한 유효한 사전과제 제출 내역이 없습니다.</p>';
       return;
@@ -303,6 +445,7 @@
       return;
     }
     container.innerHTML = '<p class="section-sub">사전과제 목록을 불러오는 중입니다...</p>';
+    // ─── department 파라미터로 본부 필터링 (서버 측) ───
     fetch(API_BASE + '?department=' + encodeURIComponent(currentDepartment))
       .then(function (res) { return res.json(); })
       .then(function (json) {
@@ -415,7 +558,7 @@
 
   function addExtraTask(track) {
     var arr = track === 'A' ? state.session2.extraA : state.session2.extraB;
-    arr.push({ id: id(), title: track === 'A' ? '확장 과제 제목' : '신규 과제 제목', desc: '' });
+    arr.push({ id: id(), title: '', desc: '' });
     state.session2.extraA = state.session2.extraA || [];
     state.session2.extraB = state.session2.extraB || [];
     renderSession2();
@@ -542,7 +685,16 @@
     if (pill) pill.classList.add('ph-active');
 
     if (phase === 'prework') { renderDomainList(); renderPreworkSubtitle(); renderWorkflowList(); renderTaskCandidateList(); renderQuestionList(); }
-    if (phase === 'session1') { renderSharedWorkflowSummary(); loadDepartmentPreworkList(); renderSession1ICE(); }
+    if (phase === 'session1') {
+      renderSharedWorkflowSummary();
+      loadDepartmentPreworkList();
+      renderSession1ICE();
+      // 워크플로우 참조 패널 초기화
+      var taskSection = document.getElementById('taskCandidateSection');
+      if (taskSection && !taskSection.querySelector('.wf-reference-toggle')) {
+        buildWfReferenceToggle(taskSection);
+      }
+    }
     if (phase === 'session2') { renderSession2(); }
     if (phase === 'session3') { renderSession3(); }
     saveState();
@@ -558,10 +710,11 @@
     currentParticipantName = params.get('name') || '';
     currentParticipantPosition = params.get('position') || '';
     var labelEl = document.getElementById('workshopGroupLabel');
-    if (labelEl && (workshop || group)) {
+    if (labelEl && (workshop || group || currentDepartment)) {
       var parts = [];
       if (workshop) parts.push('워크숍: ' + workshop);
       if (group) parts.push('조: ' + group);
+      if (currentDepartment) parts.push('본부: ' + currentDepartment);
       labelEl.textContent = parts.join(' · ');
     }
 
@@ -571,36 +724,65 @@
     renderTaskCandidateList();
     renderQuestionList();
     enhanceAutoResizeTextareas(document);
+    initWfExampleToggle();
+
+    // 과제 후보 섹션에 워크플로우 참조 패널 삽입 (사전과제 단계용)
+    // — 세션1 전환 시 buildWfReferenceToggle 호출됨
 
     document.querySelectorAll('.phase-pill[data-phase]').forEach(function (p) {
       p.addEventListener('click', function () { setPhase(this.getAttribute('data-phase')); });
     });
-    document.getElementById('addWfStep').addEventListener('click', addWfStep);
+
+    // 워크플로우 단계 추가
     document.getElementById('addWfRow').addEventListener('click', addWfStep);
-    document.getElementById('addTaskCandidate').addEventListener('click', addTaskCandidate);
+
+    // 과제 추가
     document.getElementById('addTaskRow').addEventListener('click', addTaskCandidate);
+
+    // 질문 제출
     document.getElementById('submitQuestion').addEventListener('click', submitQuestion);
+
+    // ICE 저장
     document.getElementById('saveIce').addEventListener('click', saveICE);
+
+    // 임시 저장
     document.getElementById('btnSave').addEventListener('click', saveState);
+
+    // AI 과제 제안
+    var btnAI = document.getElementById('btnAISuggest');
+    if (btnAI) btnAI.addEventListener('click', handleAISuggest);
+
+    // 다음: 과제 후보 목록 → (상단 버튼)
+    var btnGoTaskTop = document.getElementById('btnGoTaskSectionTop');
+    if (btnGoTaskTop) btnGoTaskTop.addEventListener('click', function () {
+      var el = document.getElementById('taskCandidateSection');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+
+    // 다음: 과제 후보 목록 → (하단 버튼)
+    var btnGoTaskBottom = document.getElementById('btnGoTaskSectionBottom');
+    if (btnGoTaskBottom) btnGoTaskBottom.addEventListener('click', function () {
+      var el = document.getElementById('taskCandidateSection');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+
+    // 사전과제 → 세션1
     function goNextFromPrework() {
       if (!state.prework.selectedDomainId) { alert('임원 영역을 1개 선택해 주세요.'); return; }
       if (state.prework.workflowSteps.length === 0) { alert('워크플로우 단계를 1개 이상 추가해 주세요.'); return; }
-      if (state.prework.taskCandidates.length === 0) { alert('과제 후보를 1개 이상 추가해 주세요.'); return; }
+      if (state.prework.taskCandidates.filter(function(t){return t.title;}).length === 0) { alert('과제 후보를 1개 이상 입력해 주세요.'); return; }
       setPhase('session1');
     }
     document.getElementById('btnSubmitPrework').addEventListener('click', goNextFromPrework);
     var btnBottom = document.getElementById('btnSubmitPreworkBottom');
     if (btnBottom) btnBottom.addEventListener('click', goNextFromPrework);
-    var btnGoTask = document.getElementById('btnGoTaskSection');
-    if (btnGoTask) btnGoTask.addEventListener('click', function () {
-      var el = document.getElementById('taskCandidateList');
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
     var btnPreOnly = document.getElementById('btnPreworkOnly');
     if (btnPreOnly) btnPreOnly.addEventListener('click', function () {
       saveState();
       alert('사전과제 내용이 이 브라우저에 저장되었습니다.\n\n본 워크숍 세션 1에서, 지금 작성한 워크플로우와 과제 후보를 기반으로 실행 계획을 함께 수립하게 됩니다.\n이제 창을 닫으셔도 됩니다.');
     });
+
+    // 트랙 탭
     document.querySelectorAll('.track-tab').forEach(function (t) {
       t.addEventListener('click', function () {
         var track = this.getAttribute('data-track');
@@ -612,11 +794,14 @@
         saveState();
       });
     });
+
     document.getElementById('addExtraA').addEventListener('click', function () { addExtraTask('A'); });
     document.getElementById('addExtraB').addEventListener('click', function () { addExtraTask('B'); });
     document.getElementById('exportPrint').addEventListener('click', exportPrint);
     var saveDefsBtn = document.getElementById('saveDefinitions');
     if (saveDefsBtn) saveDefsBtn.addEventListener('click', saveDefinitionsToServer);
+
+    // 네비게이션
     var navPreFromS1 = document.getElementById('navToPreworkFromS1');
     if (navPreFromS1) navPreFromS1.addEventListener('click', function () { setPhase('prework'); });
     var navS2FromS1 = document.getElementById('navToSession2FromS1');

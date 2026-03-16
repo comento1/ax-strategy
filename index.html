@@ -49,10 +49,16 @@
                 <p class="body">임원이 설정한 AI 활용 영역을 <strong>팀의 실제 일하는 방식(워크플로우)</strong>에 기반해 실행 가능한 과제로 전환하는 것입니다. 본 세션에서 팀장으로서의 관점을 과제에 더하는 논의를 하게 됩니다.</p>
               </div>
             </div>
+
+            <!-- 1-1단계 -->
             <div class="section-block">
               <p class="section-title major-step">1-1단계: 워크플로우 분석 살펴보기</p>
               <p class="section-sub" id="preworkAreaSub">영역을 선택하면 여기에 표시됩니다 — 아래 예시를 참고해, 우리 팀의 실제 업무 단계를 <strong>텍스트로 직접 입력</strong>해주세요.</p>
-              <button type="button" class="btn btn-primary wf-example-btn" id="btnShowWfExample">워크플로우 분석 예시 살펴보기 (클릭)</button>
+              <!-- 예시 보기 버튼: 크고 눈에 띄게 -->
+              <button type="button" class="btn btn-example-primary" id="btnShowWfExample">
+                <span class="btn-example-icon">📋</span>
+                워크플로우 분석 예시 살펴보기 (클릭)
+              </button>
               <div id="wfExamplePanel" class="wf-example-panel" hidden>
                 <div class="wf-example-body">
                   <p class="wf-example-title">예) 외부·사내 데이터 기반 마케팅</p>
@@ -63,32 +69,55 @@
                     <li><strong>타겟 세그먼트 정의</strong> — 고객 속성·행태 기반 세그먼트 설정</li>
                     <li><strong>캠페인 기획·성과 분석</strong> — KPI 기반 캠페인 운영 및 리포팅</li>
                   </ol>
-                  <p class="wf-example-hint">※ 각 단계에 대해 “무엇을, 어떤 순서로, 어떤 데이터/시스템을 쓰는지”를 적어주시면 됩니다. 프롬프트가 아니라 <strong>우리 팀의 실제 업무 설명</strong>을 적는 칸입니다.</p>
+                  <p class="wf-example-hint">※ 각 단계에 대해 "무엇을, 어떤 순서로, 어떤 데이터/시스템을 쓰는지"를 적어주시면 됩니다. 프롬프트가 아니라 <strong>우리 팀의 실제 업무 설명</strong>을 적는 칸입니다.</p>
                 </div>
               </div>
             </div>
+
+            <!-- 1-2단계 -->
             <div class="section-block">
               <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
                 <div>
                   <p class="section-title major-step">1-2단계: 워크플로우 분석하기 (AS-IS 정리)</p>
-                  <p class="section-sub">예시에 나와 있는 형식을 참고해, 현재 우리 팀의 실제 업무 흐름을 단계별로 정리해주세요. 각 단계는 아래 큰 입력 상자에 자유롭게 작성하시면 됩니다.</p>
+                  <p class="section-sub">예시에 나와 있는 형식을 참고해, 현재 우리 팀의 실제 업무 흐름을 단계별로 정리해주세요.</p>
                 </div>
-                <button type="button" class="btn btn-sm" id="addWfStep">단계 추가</button>
               </div>
               <div id="workflowList"></div>
-              <div class="add-row" id="addWfRow">+ 단계 추가하기</div>
-            </div>
-            <div class="section-block">
-              <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
-                <p class="section-title">과제 후보 목록</p>
-                <p class="section-sub" style="margin:0 12px 0 0; flex:1; text-align:right;">
-                  워크플로우 각 단계에서 도출한 내용을 바탕으로, <strong>업무 전반에 영향을 주는 완결된 단위의 AI 과제</strong>만 등록해주세요.
-                </p>
-                <button type="button" class="btn btn-primary btn-sm" id="btnGoTaskSection">다음: 과제 후보 목록 →</button>
+              <div class="add-row-enhanced" id="addWfRow">
+                <span class="add-row-icon">+</span> 단계 추가하기
               </div>
-              <div id="taskCandidateList"></div>
-              <div class="add-row" id="addTaskRow">+ 과제 후보 추가</div>
             </div>
+
+            <!-- 과제 후보 목록 -->
+            <div class="section-block" id="taskCandidateSection">
+              <div class="task-candidate-header">
+                <div>
+                  <p class="section-title">과제 후보 목록</p>
+                  <p class="section-sub">워크플로우 각 단계에서 도출한 내용을 바탕으로, <strong>업무 전반에 영향을 주는 완결된 단위의 AI 과제</strong>만 등록해주세요.</p>
+                </div>
+                <button type="button" class="btn btn-primary btn-next-section" id="btnGoTaskSectionTop">다음: 과제 후보 목록 →</button>
+              </div>
+
+              <!-- AI 과제 제안 받기 버튼 (시각적 위계 강화) -->
+              <button type="button" class="btn btn-ai-suggest" id="btnAISuggest">
+                <span class="ai-suggest-icon">✨</span>
+                AI 과제 제안 받기
+                <span class="ai-suggest-badge">AI</span>
+              </button>
+              <div id="aiSuggestResult" class="ai-suggest-result" hidden></div>
+
+              <div id="taskCandidateList"></div>
+              <div class="add-row-enhanced" id="addTaskRow">
+                <span class="add-row-icon">+</span> 내용 추가하기
+              </div>
+            </div>
+
+            <!-- 다음 버튼 하단 -->
+            <div class="section-block next-section-footer">
+              <button type="button" class="btn btn-primary btn-next-large" id="btnGoTaskSectionBottom">다음: 과제 후보 목록 →</button>
+            </div>
+
+            <!-- 강사에게 질문하기 -->
             <div class="section-block">
               <div class="def-card">
                 <p class="section-title">강사에게 질문하기</p>
@@ -183,12 +212,12 @@
           <div id="trackA" class="track-panel">
             <p class="section-sub">세션1에서 확정한 주제를 바탕으로 과제 범위를 확장해 추가 과제를 적어주세요.</p>
             <div id="extraTasksA"></div>
-            <div class="add-row" id="addExtraA">+ 확장 과제 추가</div>
+            <div class="add-row-enhanced" id="addExtraA"><span class="add-row-icon">+</span> 확장 과제 추가</div>
           </div>
           <div id="trackB" class="track-panel" style="display:none;">
             <p class="section-sub">임원이 정의하지 않은 영역 중 직책자 관점에서 구현할 과제를 도출하세요.</p>
             <div id="extraTasksB"></div>
-            <div class="add-row" id="addExtraB">+ 신규 과제 추가</div>
+            <div class="add-row-enhanced" id="addExtraB"><span class="add-row-icon">+</span> 신규 과제 추가</div>
           </div>
           <div class="section-block no-print">
             <div class="phase-nav-row">
