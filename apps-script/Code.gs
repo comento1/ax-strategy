@@ -92,6 +92,7 @@ function textToTaskCandidates(text) {
     var colon = line.indexOf(': ');
     var title = colon >= 0 ? line.substring(0, colon).trim() : line;
     var desc = colon >= 0 ? line.substring(colon + 2).trim() : '';
+    if (!title) return;
     tasks.push({ id: 't-' + i, title: title, desc: desc, level: level });
   });
   return tasks;
@@ -288,7 +289,7 @@ function doGet(e) {
     var strategyIdCol = headers.indexOf('SelectedStrategyId') >= 0 ? headers.indexOf('SelectedStrategyId') : headers.indexOf('선택전략ID');
     var titleCol = headers.indexOf('StrategyTitle') >= 0 ? headers.indexOf('StrategyTitle') : (headers.indexOf('선택한 영역') >= 0 ? headers.indexOf('선택한 영역') : 6);
     var wfCol = headers.indexOf('WorkflowSteps') >= 0 ? headers.indexOf('WorkflowSteps') : headers.indexOf('워크플로우');
-    var taskCol = headers.indexOf('TaskCandidates') >= 0 ? headers.indexOf('TaskCandidates') : headers.indexOf('과제후보');
+    var taskCol = headers.indexOf('TaskCandidates') >= 0 ? headers.indexOf('TaskCandidates') : (headers.indexOf('과제후보') >= 0 ? headers.indexOf('과제후보') : 8);
     var createdCol = headers.indexOf('CreatedAt') >= 0 ? headers.indexOf('CreatedAt') : headers.indexOf('제출일시');
     if (deptCol < 0) return jsonResponse({ error: '시트에 Department 또는 제출본부 컬럼이 없습니다.' }, 500);
 
@@ -306,15 +307,21 @@ function doGet(e) {
       var titleVal = titleCol >= 0 && row[titleCol] != null ? String(row[titleCol]).trim() : '';
       if (isSampleTitle(titleVal)) continue;
 
+      // 실명이 있는 행만 노출 (익명 또는 참가자명 비어 있으면 제외)
+      var pName = row[nameCol] != null ? String(row[nameCol]).trim() : '';
+      if (!pName || pName === '익명') continue;
+
+      var wfRaw = wfCol >= 0 ? row[wfCol] : '';
+      var taskRaw = taskCol >= 0 ? row[taskCol] : '';
       result.push({
         id: row[idCol] || '',
         department: rowDept,
-        participantName: row[nameCol] != null ? String(row[nameCol]) : '익명',
+        participantName: pName,
         participantPosition: positionCol >= 0 && row[positionCol] != null ? String(row[positionCol]) : '',
         selectedStrategyId: row[strategyIdCol] != null ? String(row[strategyIdCol]) : null,
         strategyTitle: row[titleCol] != null ? String(row[titleCol]) : null,
-        workflowSteps: textToWorkflowSteps(row[wfCol]),
-        taskCandidates: textToTaskCandidates(row[taskCol]),
+        workflowSteps: textToWorkflowSteps(wfRaw),
+        taskCandidates: textToTaskCandidates(taskRaw),
         // 질문은 별도 Questions 시트에서만 관리하고, Prework 목록에서는 노출하지 않음
         questions: [],
         createdAt: row[createdCol] != null ? String(row[createdCol]) : ''

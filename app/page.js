@@ -130,7 +130,7 @@ export default function Home() {
               level: t.level,
               submissionId: pw.id,
               participantName: pw.participantName,
-            })));
+            }))).filter((t) => !isSampleTitle(t.title));
             const seen = new Set();
             setAgreedTasks(flat.filter((t) => { if (seen.has(t.id)) return false; seen.add(t.id); return true; }));
           }
@@ -994,23 +994,40 @@ export default function Home() {
             {sharedPrework.length === 0 && (
               <p className="section-sub">제출된 사전과제가 없습니다. 위에서 본부를 선택한 뒤 새로고침해 보세요.</p>
             )}
-            {sharedPrework.map((pw) => (
-              <div key={pw.id} className={`shared-prework-card ${expandedPreworkId === pw.id ? 'expanded' : ''}`} onClick={() => setExpandedPreworkId(expandedPreworkId === pw.id ? null : pw.id)}>
-                <div className="shared-prework-head">
-                  <p className="section-title">{pw.participantName || '익명'} · {pw.strategyTitle?.slice(0, 80)}{(pw.strategyTitle?.length || 0) > 80 ? '…' : ''}</p>
-                  <p className="section-sub">워크플로우 {pw.workflowSteps?.length || 0}단계, 과제 후보 {pw.taskCandidates?.length || 0}개 · 클릭하여 펼치기</p>
+            {(() => {
+              const byStrategy = {};
+              (sharedPrework || []).forEach((pw) => {
+                const key = (pw.strategyTitle || '').trim() || '(AI 적용 기대영역 미지정)';
+                if (!byStrategy[key]) byStrategy[key] = [];
+                byStrategy[key].push(pw);
+              });
+              return Object.entries(byStrategy).map(([strategyTitle, list]) => (
+                <div key={strategyTitle} className="prework-group" style={{ marginBottom: 24 }}>
+                  <p className="section-label" style={{ marginBottom: 8, fontWeight: 600 }}>📌 {strategyTitle}</p>
+                  {list.map((pw) => (
+                    <div key={pw.id} className={`shared-prework-card ${expandedPreworkId === pw.id ? 'expanded' : ''}`} onClick={() => setExpandedPreworkId(expandedPreworkId === pw.id ? null : pw.id)}>
+                      <div className="shared-prework-head">
+                        <p className="section-title">{pw.participantName} · {pw.strategyTitle?.slice(0, 80)}{(pw.strategyTitle?.length || 0) > 80 ? '…' : ''}</p>
+                        <p className="section-sub">워크플로우 {pw.workflowSteps?.length || 0}단계, 과제 후보 {pw.taskCandidates?.length || 0}개 · 클릭하여 펼치기</p>
+                      </div>
+                      {expandedPreworkId === pw.id && (
+                        <div className="shared-prework-body">
+                          <p className="section-label">워크플로우</p>
+                          <ol className="shared-wf-list">{(pw.workflowSteps || []).map((s, i) => <li key={s.id || i}>{s.title} — {s.desc}</li>)}</ol>
+                          <p className="section-label">과제 후보</p>
+                          {(pw.taskCandidates || []).length > 0 ? (
+                            <ul className="shared-task-list">{(pw.taskCandidates || []).map((t, i) => <li key={t.id || i}><strong>{t.title}</strong> {t.desc}</li>)}</ul>
+                          ) : (
+                            <p className="section-sub">제출된 과제 후보가 없습니다.</p>
+                          )}
+                          {(pw.questions || []).length > 0 && (<><p className="section-label">질문</p><ul className="shared-q-list">{(pw.questions || []).map((q, i) => <li key={i}>{q}</li>)}</ul></>)}
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
-                {expandedPreworkId === pw.id && (
-                  <div className="shared-prework-body">
-                    <p className="section-label">워크플로우</p>
-                    <ol className="shared-wf-list">{(pw.workflowSteps || []).map((s, i) => <li key={s.id || i}>{s.title} — {s.desc}</li>)}</ol>
-                    <p className="section-label">과제 후보</p>
-                    <ul className="shared-task-list">{(pw.taskCandidates || []).map((t, i) => <li key={t.id || i}><strong>{t.title}</strong> {t.desc}</li>)}</ul>
-                    {(pw.questions || []).length > 0 && (<><p className="section-label">질문</p><ul className="shared-q-list">{(pw.questions || []).map((q, i) => <li key={i}>{q}</li>)}</ul></>)}
-                  </div>
-                )}
-              </div>
-            ))}
+              ));
+            })()}
           </div>
           {/* ICE 정량 평가는 세션2 이후로 이동 */}
         </main>
