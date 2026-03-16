@@ -5,6 +5,10 @@
   var seed = window.AX_SEED || {};
   var areas = seed.executiveAreas || [];
   var iceLabels = seed.iceLabels || {};
+  var API_BASE = window.AX_API_BASE || '';
+  var currentDepartment = '';
+  var currentParticipantName = '';
+  var currentParticipantPosition = '';
 
   var state = {
     currentPhase: 'prework',
@@ -151,6 +155,24 @@
     return div.innerHTML;
   }
 
+  function autoResizeTextarea(el) {
+    if (!el) return;
+    el.style.height = 'auto';
+    var h = el.scrollHeight;
+    if (!h || h < 40) h = 40;
+    el.style.height = h + 'px';
+  }
+
+  function enhanceAutoResizeTextareas(root) {
+    var scope = root || document;
+    scope.querySelectorAll('textarea').forEach(function (ta) {
+      if (ta._axAutoResizeBound) return;
+      ta._axAutoResizeBound = true;
+      ta.addEventListener('input', function () { autoResizeTextarea(ta); });
+      autoResizeTextarea(ta);
+    });
+  }
+
   // ----- 사전과제 이벤트 -----
   function addWfStep() {
     var order = state.prework.workflowSteps.length;
@@ -200,6 +222,86 @@
     html += '<div class="def-card"><p class="section-title">워크플로우 단계</p><ol style="margin:0; padding-left:18px;">' +
       steps.map(function (s) { return '<li>' + escapeHtml(s.title) + (s.desc ? ' — ' + escapeHtml(s.desc) : '') + '</li>'; }).join('') + '</ol></div>';
     container.innerHTML = html;
+  }
+
+  function isSamplePreworkItem(item) {
+    var title = (item && item.strategyTitle) ? String(item.strategyTitle) : '';
+    if (!title) return false;
+    if (title.indexOf('ZERO 브랜드 라인업 확대') >= 0) return true;
+    if (title === '테스트' || title === '테스트 2') return true;
+    return false;
+  }
+
+  function renderDepartmentPreworkList(list) {
+    var container = document.getElementById('departmentPreworkList');
+    if (!container) return;
+    if (!Array.isArray(list) || list.length === 0) {
+      container.innerHTML = '<p class="section-sub">현재 본부에 대한 사전과제 제출 내역이 없습니다.</p>';
+      return;
+    }
+    var safe = list.filter(function (item) { return !isSamplePreworkItem(item); });
+    if (safe.length === 0) {
+      container.innerHTML = '<p class="section-sub">현재 본부에 대한 유효한 사전과제 제출 내역이 없습니다.</p>';
+      return;
+    }
+    container.innerHTML = safe.map(function (item) {
+      var wf = Array.isArray(item.workflowSteps) ? item.workflowSteps : [];
+      var tasks = Array.isArray(item.taskCandidates) ? item.taskCandidates : [];
+      var questions = Array.isArray(item.questions) ? item.questions : [];
+      var wfHtml = wf.map(function (s, idx) {
+        var tagText = s.aiTag === 'review' ? '검토 필요' : 'AI 적용 가능';
+        var tagClass = s.aiTag === 'review' ? 'tag-review' : 'tag-ai';
+        return '<li><span class="badge-step">' + (idx + 1) + '</span> ' +
+          escapeHtml(s.title || '') +
+          (s.desc ? ' — ' + escapeHtml(s.desc) : '') +
+          ' <span class="tag ' + tagClass + '">' + tagText + '</span></li>';
+      }).join('');
+      var taskHtml = tasks.map(function (t, idx) {
+        return '<li><strong>' + (idx + 1) + '. ' + escapeHtml(t.title || '') + '</strong>' +
+          (t.desc ? ' — ' + escapeHtml(t.desc) : '') + '</li>';
+      }).join('');
+      var qHtml = questions.map(function (q, idx) {
+        return '<li>' + (idx + 1) + '. ' + escapeHtml(q) + '</li>';
+      }).join('');
+      return '' +
+        '<article class="def-card prework-card">' +
+        '<header class="prework-card-header">' +
+        '<div><p class="prework-card-title">' + escapeHtml(item.strategyTitle || '사전과제') + '</p>' +
+        '<p class="prework-card-meta">' + escapeHtml(item.participantName || '익명') +
+        (item.participantPosition ? ' · ' + escapeHtml(item.participantPosition) : '') +
+        '</p></div>' +
+        '</header>' +
+        '<section class="prework-card-body">' +
+        '<div class="prework-card-col">' +
+        '<h4>워크플로우</h4>' +
+        (wfHtml ? '<ol class="prework-card-list">' + wfHtml + '</ol>' : '<p class="section-sub">입력된 워크플로우가 없습니다.</p>') +
+        '</div>' +
+        '<div class="prework-card-col">' +
+        '<h4>AI 과제 제안</h4>' +
+        (taskHtml ? '<ul class="prework-card-list">' + taskHtml + '</ul>' : '<p class="section-sub">과제 후보가 없습니다.</p>') +
+        (qHtml ? '<div class="prework-card-questions"><h4>질문</h4><ul class="prework-card-list">' + qHtml + '</ul></div>' : '') +
+        '</div>' +
+        '</section>' +
+        '</article>';
+    }).join('');
+  }
+
+  function loadDepartmentPreworkList() {
+    var container = document.getElementById('departmentPreworkList');
+    if (!container) return;
+    if (!API_BASE || !currentDepartment) {
+      container.innerHTML = '<p class="section-sub">본부 또는 API 설정이 없어 사전과제 목록을 불러올 수 없습니다.</p>';
+      return;
+    }
+    container.innerHTML = '<p class="section-sub">사전과제 목록을 불러오는 중입니다...</p>';
+    fetch(API_BASE + '?department=' + encodeURIComponent(currentDepartment))
+      .then(function (res) { return res.json(); })
+      .then(function (json) {
+        renderDepartmentPreworkList(json);
+      })
+      .catch(function () {
+        container.innerHTML = '<p class="section-sub">사전과제 목록을 불러오지 못했습니다. 네트워크 상태를 확인해주세요.</p>';
+      });
   }
 
   function renderSession1ICE() {
@@ -374,10 +476,47 @@
         saveState();
       });
     });
+    enhanceAutoResizeTextareas(formsEl);
   }
 
   function exportPrint() {
     window.print();
+  }
+
+  function saveDefinitionsToServer() {
+    if (!API_BASE) {
+      alert('서버 API 설정이 없어 저장할 수 없습니다. 관리자에게 문의해 주세요.');
+      return;
+    }
+    var defs = state.session3.definitions || {};
+    var tasks = getFinalTaskList();
+    if (!tasks.length) {
+      alert('저장할 과제가 없습니다.');
+      return;
+    }
+    var payloads = tasks.map(function (t) {
+      var def = defs[t.id] || {};
+      return {
+        action: 'session3_definitions',
+        department: currentDepartment || '',
+        participantName: currentParticipantName || '',
+        participantPosition: currentParticipantPosition || '',
+        taskId: t.id,
+        taskTitle: t.title || '',
+        definition: def
+      };
+    });
+    Promise.all(payloads.map(function (body) {
+      return fetch(API_BASE, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      }).then(function (res) {
+        try { return res.json(); } catch (e) { return {}; }
+      }).catch(function () { return {}; });
+    })).then(function () {
+      alert('과제정의서가 저장되었습니다.');
+    });
   }
 
   // ----- 단계 전환 -----
@@ -394,7 +533,7 @@
     if (pill) pill.classList.add('ph-active');
 
     if (phase === 'prework') { renderDomainList(); renderPreworkSubtitle(); renderWorkflowList(); renderTaskCandidateList(); renderQuestionList(); }
-    if (phase === 'session1') { renderSharedWorkflowSummary(); renderSession1ICE(); }
+    if (phase === 'session1') { renderSharedWorkflowSummary(); loadDepartmentPreworkList(); renderSession1ICE(); }
     if (phase === 'session2') { renderSession2(); }
     if (phase === 'session3') { renderSession3(); }
     saveState();
@@ -406,6 +545,9 @@
     var params = new URLSearchParams(window.location.search);
     var workshop = params.get('workshop');
     var group = params.get('group');
+    currentDepartment = params.get('department') || '';
+    currentParticipantName = params.get('name') || '';
+    currentParticipantPosition = params.get('position') || '';
     var labelEl = document.getElementById('workshopGroupLabel');
     if (labelEl && (workshop || group)) {
       var parts = [];
@@ -419,6 +561,7 @@
     renderWorkflowList();
     renderTaskCandidateList();
     renderQuestionList();
+    enhanceAutoResizeTextareas(document);
 
     document.querySelectorAll('.phase-pill[data-phase]').forEach(function (p) {
       p.addEventListener('click', function () { setPhase(this.getAttribute('data-phase')); });
@@ -430,12 +573,15 @@
     document.getElementById('submitQuestion').addEventListener('click', submitQuestion);
     document.getElementById('saveIce').addEventListener('click', saveICE);
     document.getElementById('btnSave').addEventListener('click', saveState);
-    document.getElementById('btnSubmitPrework').addEventListener('click', function () {
+    function goNextFromPrework() {
       if (!state.prework.selectedDomainId) { alert('임원 영역을 1개 선택해 주세요.'); return; }
       if (state.prework.workflowSteps.length === 0) { alert('워크플로우 단계를 1개 이상 추가해 주세요.'); return; }
       if (state.prework.taskCandidates.length === 0) { alert('과제 후보를 1개 이상 추가해 주세요.'); return; }
       setPhase('session1');
-    });
+    }
+    document.getElementById('btnSubmitPrework').addEventListener('click', goNextFromPrework);
+    var btnBottom = document.getElementById('btnSubmitPreworkBottom');
+    if (btnBottom) btnBottom.addEventListener('click', goNextFromPrework);
     document.querySelectorAll('.track-tab').forEach(function (t) {
       t.addEventListener('click', function () {
         var track = this.getAttribute('data-track');
@@ -450,6 +596,16 @@
     document.getElementById('addExtraA').addEventListener('click', function () { addExtraTask('A'); });
     document.getElementById('addExtraB').addEventListener('click', function () { addExtraTask('B'); });
     document.getElementById('exportPrint').addEventListener('click', exportPrint);
+    var saveDefsBtn = document.getElementById('saveDefinitions');
+    if (saveDefsBtn) saveDefsBtn.addEventListener('click', saveDefinitionsToServer);
+    var navPreFromS1 = document.getElementById('navToPreworkFromS1');
+    if (navPreFromS1) navPreFromS1.addEventListener('click', function () { setPhase('prework'); });
+    var navS2FromS1 = document.getElementById('navToSession2FromS1');
+    if (navS2FromS1) navS2FromS1.addEventListener('click', function () { setPhase('session2'); });
+    var navS1FromS2 = document.getElementById('navToSession1FromS2');
+    if (navS1FromS2) navS1FromS2.addEventListener('click', function () { setPhase('session1'); });
+    var navS3FromS2 = document.getElementById('navToSession3FromS2');
+    if (navS3FromS2) navS3FromS2.addEventListener('click', function () { setPhase('session3'); });
 
     setPhase(state.currentPhase);
   }

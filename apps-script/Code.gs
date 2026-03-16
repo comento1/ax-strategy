@@ -173,6 +173,16 @@ function doGet(e) {
       var rowDept = row[deptCol] ? String(row[deptCol]).trim() : '';
       if (rowDept !== filterDept) continue;
 
+      // 워크숍 설계 시 사용한 테스트/샘플 데이터는 세션 화면에 노출하지 않도록 필터링
+      // 예: "[ZERO 브랜드 라인업 확대 및 헬스&웰니스 카테고리 강화]", "테스트", "테스트 2"
+      var titleVal = titleCol >= 0 && row[titleCol] != null ? String(row[titleCol]).trim() : '';
+      if (!titleVal) titleVal = '';
+      var isSample =
+        titleVal.indexOf('ZERO 브랜드 라인업 확대') >= 0 ||
+        titleVal === '테스트' ||
+        titleVal === '테스트 2';
+      if (isSample) continue;
+
       var wf = textToWorkflowSteps(row[wfCol]);
       var tasks = textToTaskCandidates(row[taskCol]);
       var questions = textToQuestions(row[qCol]);

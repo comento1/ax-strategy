@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>롯데웰푸드 AI 전환 과제 설계</title>
   <link rel="stylesheet" href="css/style.css" />
+  <script>
+    // Apps Script Web App URL (예: https://script.google.com/macros/s/XXXXX/exec)
+    // 필요 시 실제 배포 URL로 교체해서 사용합니다.
+    window.AX_API_BASE = window.AX_API_BASE || '';
+  </script>
 </head>
 <body>
   <div class="app-shell">
@@ -58,6 +63,9 @@
             <div class="section-block">
               <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
                 <p class="section-title">과제 후보 목록</p>
+                <p class="section-sub" style="margin:0 12px 0 0; flex:1; text-align:right;">
+                  워크플로우 각 단계에서 도출한 내용을 바탕으로, <strong>업무 전반에 영향을 주는 완결된 단위의 AI 과제</strong>만 등록해주세요.
+                </p>
                 <button type="button" class="btn btn-sm" id="addTaskCandidate">과제 후보 추가</button>
               </div>
               <div id="taskCandidateList"></div>
@@ -70,6 +78,11 @@
                 <textarea id="questionText" placeholder="예: 영업과 마케팅 업무의 경계를 어떻게 설정해야 할지 모르겠습니다..." rows="3"></textarea>
                 <div style="text-align:right; margin-top:8px;"><button type="button" class="btn btn-primary btn-sm" id="submitQuestion">질문 제출</button></div>
                 <ul id="questionList" style="margin:10px 0 0; padding-left:18px; font-size:12px; color:var(--color-text-secondary);"></ul>
+              </div>
+            </div>
+            <div class="section-block no-print" id="preworkBottomNav">
+              <div style="display:flex; justify-content:flex-end; gap:8px;">
+                <button type="button" class="btn btn-primary" id="btnSubmitPreworkBottom">워크플로우 분석 완료 · 다음 단계 →</button>
               </div>
             </div>
           </div>
@@ -92,6 +105,11 @@
             <div id="sharedWorkflowSummary"></div>
           </div>
           <div class="section-block">
+            <h3>본부 내 제출된 사전과제 목록</h3>
+            <p class="section-sub">현재 URL에 지정된 본부에 대해, 사전에 제출된 워크플로우 기반 과제가 카드 형태로 요약되어 표시됩니다.</p>
+            <div id="departmentPreworkList" class="prework-card-grid"></div>
+          </div>
+          <div class="section-block">
             <h3>현실성 검토 — ICE 정량 평가</h3>
             <p class="section-sub">각 과제 후보에 대해 1~10점으로 평가하세요. ICE 점수 = (전략 부합도 + 구현 가능성 + 데이터 확보성) ÷ 3</p>
             <div style="overflow-x:auto;">
@@ -112,6 +130,12 @@
           </div>
           <div class="section-block no-print">
             <button type="button" class="btn btn-primary" id="saveIce">평가 저장 및 우선순위 반영</button>
+          </div>
+          <div class="section-block no-print">
+            <div class="phase-nav-row">
+              <button type="button" class="btn" id="navToPreworkFromS1">← 워크플로우/과제 단계로 돌아가기</button>
+              <button type="button" class="btn btn-primary" id="navToSession2FromS1">AI 과제 확장 단계로 이동 →</button>
+            </div>
           </div>
         </div>
       </section>
@@ -140,6 +164,12 @@
             <div id="extraTasksB"></div>
             <div class="add-row" id="addExtraB">+ 신규 과제 추가</div>
           </div>
+          <div class="section-block no-print">
+            <div class="phase-nav-row">
+              <button type="button" class="btn" id="navToSession1FromS2">← 현실성 검토(세션1)로 돌아가기</button>
+              <button type="button" class="btn btn-primary" id="navToSession3FromS2">과제정의서 작성 단계로 이동 →</button>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -163,7 +193,10 @@
             <div id="definitionForms"></div>
           </div>
           <div class="section-block no-print">
-            <button type="button" class="btn btn-primary" id="exportPrint">과제정의서 인쇄 / PDF 저장</button>
+            <div class="phase-nav-row">
+              <button type="button" class="btn" id="saveDefinitions">저장</button>
+              <button type="button" class="btn btn-primary" id="exportPrint">과제정의서 인쇄 / PDF 저장</button>
+            </div>
           </div>
         </div>
       </section>
