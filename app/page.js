@@ -159,28 +159,37 @@ export default function Home() {
     if (phase === 'session2' && session2Step === 'ice') fetchIcePreworkTasks();
   }, [phase, session2Step, fetchIcePreworkTasks]);
 
-  // 시트에서 본인 아이디어가 반영되면 recentlyRegistered에서 제거하고, 선정(selectedIds)은 시트 id로 보정해 ICE에 유지
+  // 시트에서 본인 아이디어가 반영되면 recentlyRegistered에서 제거. 선정된 항목은 시트에 ICE선정=Y로 반영
   useEffect(() => {
     const mine = (sharedSession2Ideas || []).filter(
       (r) => (r.department || '').trim() === (department || '').trim() && (r.participantName || '').trim() === (participantName || '').trim()
     );
+    const rec = session2.recentlyRegistered || [];
+    const ids = session2.selectedIds || [];
+    const toSyncRowIndices = [];
+    rec.forEach((r) => {
+      const sheetMatch = mine.find((i) => (i.title || '').trim() === (r.title || '').trim() && (i.asIs || '').trim() === (r.asIs || '').trim());
+      if (sheetMatch && ids.includes(r.id)) toSyncRowIndices.push(sheetMatch.rowIndex);
+    });
     setSession2((s) => {
-      const rec = s.recentlyRegistered || [];
-      const ids = s.selectedIds || [];
+      const recS = s.recentlyRegistered || [];
       const toRemoveIds = [];
-      const toAddIds = [];
-      rec.forEach((r) => {
+      recS.forEach((r) => {
         const sheetMatch = mine.find((i) => (i.title || '').trim() === (r.title || '').trim() && (i.asIs || '').trim() === (r.asIs || '').trim());
-        if (sheetMatch) {
-          toRemoveIds.push(r.id);
-          toAddIds.push(makeSharedIdeaId(sheetMatch));
-        }
+        if (sheetMatch) toRemoveIds.push(r.id);
       });
-      const newRec = rec.filter((r) => !toRemoveIds.includes(r.id));
-      const newIds = [...ids.filter((id) => !toRemoveIds.includes(id)), ...toAddIds.filter((id) => !ids.includes(id))];
+      const newRec = recS.filter((r) => !toRemoveIds.includes(r.id));
+      const newIds = (s.selectedIds || []).filter((id) => !toRemoveIds.includes(id));
       return { ...s, recentlyRegistered: newRec, selectedIds: newIds };
     });
-  }, [sharedSession2Ideas, department, participantName, makeSharedIdeaId]);
+    toSyncRowIndices.forEach((rowIndex) => {
+      fetch('/api/prework', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'session2_select', rowIndex, selected: true }),
+      }).catch(() => {});
+    });
+  }, [sharedSession2Ideas, department, participantName]);
 
   useEffect(() => {
     fetch('/api/logo')
@@ -455,10 +464,11 @@ export default function Home() {
         ...(session2.extraB || []).map((t) => ({ ...t, source: 'extraB' })),
       ]);
   const selectedIdsForIdeas = session2.selectedIds || [];
+  // ICE 선정: 시트는 iceSelected 컬럼 기준, 방금 등록분은 selectedIds 기준
   const selectedIdeasAsTasks = [
     ...(sharedSession2Ideas || [])
-      .filter((r) => selectedIdsForIdeas.includes(makeSharedIdeaId(r)))
-      .map((r) => ({ id: makeSharedIdeaId(r), title: r.title, desc: [r.asIs, r.toBe].filter(Boolean).join('\n\n'), source: 'session2_idea' })),
+      .filter((r) => r.iceSelected === true)
+      .map((r) => ({ id: `s2row:${r.rowIndex || 0}`, title: r.title, desc: [r.asIs, r.toBe].filter(Boolean).join('\n\n'), source: 'session2_idea' })),
     ...(session2.recentlyRegistered || [])
       .filter((r) => selectedIdsForIdeas.includes(r.id))
       .map((r) => ({ id: r.id, title: r.title, desc: [r.asIs, r.toBe].filter(Boolean).join('\n\n'), source: 'session2_idea' })),
@@ -546,11 +556,27 @@ export default function Home() {
       // 실패 시에도 로컬에는 이미 반영됨
     }
   };
-  const toggleIdeaSelected = (ideaId) => {
+  const toggleIdeaSelected = async (idea, isSheetIdea) => {
+    if (isSheetIdea && idea.rowIndex) {
+      const nextSelected = !idea.iceSelected;
+      try {
+        await fetch('/api/prework', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'session2_select', rowIndex: idea.rowIndex, selected: nextSelected }),
+        });
+        await fetchSharedSession2Ideas();
+      } catch {
+        // 실패 시 재조회로 복구
+        fetchSharedSession2Ideas();
+      }
+      return;
+    }
+    const rid = idea.id;
     setSession2((s) => {
       const ids = s.selectedIds || [];
-      const has = ids.includes(ideaId);
-      return { ...s, selectedIds: has ? ids.filter((id) => id !== ideaId) : [...ids, ideaId] };
+      const has = ids.includes(rid);
+      return { ...s, selectedIds: has ? ids.filter((id) => id !== rid) : [...ids, rid] };
     });
   };
 
@@ -1245,17 +1271,18 @@ export default function Home() {
               <div className="section-block">
                 <h3>내가 방금 등록한 아이디어</h3>
                 {myIdeasDisplay.map((r) => {
-                  const rid = r.id && r.id.startsWith('recent:') ? r.id : makeSharedIdeaId(r);
-                  const selected = selectedIds.includes(rid);
+                  const isSheet = !!r.rowIndex;
+                  const key = isSheet ? `s2row:${r.rowIndex}` : (r.id || makeSharedIdeaId(r));
+                  const selected = isSheet ? !!r.iceSelected : selectedIds.includes(r.id);
                   return (
-                    <div key={rid} className={`task-card session2-registered ${selected ? 'session2-selected' : ''}`} style={{ marginBottom: 10 }}>
+                    <div key={key} className={`task-card session2-registered ${selected ? 'session2-selected' : ''}`} style={{ marginBottom: 10 }}>
                       <div style={{ flex: 1 }}>
                         <p className="title">{r.title || '(제목 없음)'}</p>
                         {r.asIs ? <p className="desc"><strong>AS-IS:</strong> {r.asIs}</p> : null}
                         {r.toBe ? <p className="desc"><strong>TO-BE:</strong> {r.toBe}</p> : null}
                       </div>
                       <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                        <button type="button" className={`btn btn-sm ${selected ? 'btn-primary' : ''}`} onClick={() => toggleIdeaSelected(rid)}>
+                        <button type="button" className={`btn btn-sm ${selected ? 'btn-primary' : ''}`} onClick={() => toggleIdeaSelected(r, isSheet)}>
                           {selected ? 'ICE 대상에서 제거' : '과제 리스트에 추가하기'}
                         </button>
                       </div>

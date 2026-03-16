@@ -187,6 +187,8 @@ function doGet(e) {
       var createdIdx = headers2.indexOf('제출일시');
       var nameIdx = headers2.indexOf('참가자이름');
       var posIdx = headers2.indexOf('직급');
+      var iceCol = headers2.indexOf('ICE선정');
+      if (iceCol < 0 && headers2.length >= SESSION2_ICE_COL) iceCol = SESSION2_ICE_COL - 1;
 
       var filterDept2 = params.department ? String(params.department).trim() : '';
       var ideas = [];
@@ -198,10 +200,13 @@ function doGet(e) {
 
         var title2 = titleIdx >= 0 && row2[titleIdx] != null ? String(row2[titleIdx]).trim() : '';
         if (!title2) continue;
-        // 워크숍 설계 시 사용한 샘플/테스트 행은 노출하지 않음
         if (isSampleTitle(title2)) continue;
 
+        var iceVal = iceCol >= 0 && row2[iceCol] != null ? String(row2[iceCol]).trim().toUpperCase() : '';
+        var iceSelected = iceVal === 'Y' || iceVal === '1' || iceVal === 'TRUE';
+
         ideas.push({
+          rowIndex: r + 1,
           department: dept2,
           title: title2,
           asIs: asIsIdx >= 0 && row2[asIsIdx] != null ? String(row2[asIsIdx]).trim() : '',
@@ -210,7 +215,8 @@ function doGet(e) {
           type: typeIdx >= 0 && row2[typeIdx] != null ? String(row2[typeIdx]).trim() : '',
           createdAt: createdIdx >= 0 && row2[createdIdx] != null ? String(row2[createdIdx]).trim() : '',
           participantName: nameIdx >= 0 && row2[nameIdx] != null ? String(row2[nameIdx]).trim() : '',
-          participantPosition: posIdx >= 0 && row2[posIdx] != null ? String(row2[posIdx]).trim() : ''
+          participantPosition: posIdx >= 0 && row2[posIdx] != null ? String(row2[posIdx]).trim() : '',
+          iceSelected: iceSelected
         });
       }
 
@@ -373,9 +379,21 @@ function doPost(e) {
           item.asIs || '',
           item.toBe || '',
           item.desc || '',
-          typeLabel
+          typeLabel,
+          ''
         ]);
       });
+      return jsonResponse({ ok: true });
+    }
+
+    if (data.action === 'session2_select') {
+      var rowIdx = data.rowIndex != null ? Number(data.rowIndex) : 0;
+      var selected = data.selected === true || data.selected === 'true';
+      if (rowIdx < 1) return jsonResponse({ error: 'rowIndex required' }, 400);
+      var s2 = getSession2Sheet();
+      var lastRow = s2.getLastRow();
+      if (rowIdx > lastRow) return jsonResponse({ error: 'rowIndex out of range' }, 400);
+      s2.getRange(rowIdx, SESSION2_ICE_COL).setValue(selected ? 'Y' : '');
       return jsonResponse({ ok: true });
     }
 
@@ -460,13 +478,15 @@ function getQuestionsSheet() {
   return sheet;
 }
 
+var SESSION2_ICE_COL = 10; // ICE선정 컬럼(1-based)
+
 function getSession2Sheet() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(SESSION2_SHEET_NAME);
   if (!sheet) {
     sheet = ss.insertSheet(SESSION2_SHEET_NAME);
-    sheet.appendRow(['제출일시', '작성본부', '참가자이름', '직급', '과제제목', 'AS-IS', 'TO-BE', '비고', '유형(임원 확장/신규)']);
-    sheet.getRange(1, 1, 1, 9).setFontWeight('bold');
+    sheet.appendRow(['제출일시', '작성본부', '참가자이름', '직급', '과제제목', 'AS-IS', 'TO-BE', '비고', '유형(임원 확장/신규)', 'ICE선정']);
+    sheet.getRange(1, 1, 1, 10).setFontWeight('bold');
   }
   return sheet;
 }
