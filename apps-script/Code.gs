@@ -323,6 +323,7 @@ function doGet(e) {
       var wfRaw = wfCol >= 0 ? row[wfCol] : '';
       var taskRaw = row[7] != null ? row[7] : (taskCol >= 0 ? row[taskCol] : '');
       result.push({
+        rowIndex: i + 1,
         id: row[idCol] || '',
         department: rowDept,
         participantName: pName,

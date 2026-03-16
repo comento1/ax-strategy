@@ -137,8 +137,8 @@ export default function Home() {
       .then((r) => r.json())
       .then((list) => {
         const arr = Array.isArray(list) ? list : [];
-        const flat = arr.flatMap((pw) => (pw.taskCandidates || []).map((t) => ({
-          id: `${pw.id || 'pw'}-${t.id || id()}`,
+        const flat = arr.flatMap((pw, pwIdx) => (pw.taskCandidates || []).map((t, tIdx) => ({
+          id: `prework:${pw.rowIndex ?? pwIdx}:${tIdx}:${t.id || ''}`,
           title: t.title,
           desc: t.desc || '',
           level: t.level,
@@ -159,35 +159,16 @@ export default function Home() {
     if (phase === 'session2' && session2Step === 'ice') fetchIcePreworkTasks();
   }, [phase, session2Step, fetchIcePreworkTasks]);
 
-  // 시트에서 본인 아이디어가 반영되면 recentlyRegistered에서 제거. 선정된 항목은 시트에 ICE선정=Y로 반영
+  // 시트에 반영된 아이디어는 recentlyRegistered에서 제거(상태 정리용, 표시는 시트만 사용)
   useEffect(() => {
     const mine = (sharedSession2Ideas || []).filter(
       (r) => (r.department || '').trim() === (department || '').trim() && (r.participantName || '').trim() === (participantName || '').trim()
     );
-    const rec = session2.recentlyRegistered || [];
-    const ids = session2.selectedIds || [];
-    const toSyncRowIndices = [];
-    rec.forEach((r) => {
-      const sheetMatch = mine.find((i) => (i.title || '').trim() === (r.title || '').trim() && (i.asIs || '').trim() === (r.asIs || '').trim());
-      if (sheetMatch && ids.includes(r.id)) toSyncRowIndices.push(sheetMatch.rowIndex);
-    });
     setSession2((s) => {
       const recS = s.recentlyRegistered || [];
-      const toRemoveIds = [];
-      recS.forEach((r) => {
-        const sheetMatch = mine.find((i) => (i.title || '').trim() === (r.title || '').trim() && (i.asIs || '').trim() === (r.asIs || '').trim());
-        if (sheetMatch) toRemoveIds.push(r.id);
-      });
-      const newRec = recS.filter((r) => !toRemoveIds.includes(r.id));
-      const newIds = (s.selectedIds || []).filter((id) => !toRemoveIds.includes(id));
-      return { ...s, recentlyRegistered: newRec, selectedIds: newIds };
-    });
-    toSyncRowIndices.forEach((rowIndex) => {
-      fetch('/api/prework', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'session2_select', rowIndex, selected: true }),
-      }).catch(() => {});
+      const newRec = recS.filter((r) => !mine.some((i) => (i.title || '').trim() === (r.title || '').trim() && (i.asIs || '').trim() === (r.asIs || '').trim()));
+      if (newRec.length === recS.length) return s;
+      return { ...s, recentlyRegistered: newRec };
     });
   }, [sharedSession2Ideas, department, participantName]);
 
@@ -463,21 +444,14 @@ export default function Home() {
         ...icePreworkTasks,
         ...(session2.extraB || []).map((t) => ({ ...t, source: 'extraB' })),
       ]);
-  const selectedIdsForIdeas = session2.selectedIds || [];
-  // ICE 선정: 시트는 iceSelected 컬럼 기준, 방금 등록분은 selectedIds 기준
-  const selectedIdeasAsTasks = [
-    ...(sharedSession2Ideas || [])
-      .filter((r) => r.iceSelected === true)
-      .map((r) => ({ id: `s2row:${r.rowIndex || 0}`, title: r.title, desc: [r.asIs, r.toBe].filter(Boolean).join('\n\n'), source: 'session2_idea' })),
-    ...(session2.recentlyRegistered || [])
-      .filter((r) => selectedIdsForIdeas.includes(r.id))
-      .map((r) => ({ id: r.id, title: r.title, desc: [r.asIs, r.toBe].filter(Boolean).join('\n\n'), source: 'session2_idea' })),
-  ];
+  // ICE 선정: 시트 ICE선정 컬럼만 사용. 시트에 없는 데이터(샘플)는 표시하지 않음.
+  const selectedIdeasAsTasks = (sharedSession2Ideas || [])
+    .filter((r) => r.iceSelected === true)
+    .map((r) => ({ id: `s2row:${r.rowIndex || 0}`, title: r.title, desc: [r.asIs, r.toBe].filter(Boolean).join('\n\n'), source: 'session2_idea' }));
   const mySession2Ideas = (sharedSession2Ideas || []).filter(
     (r) => (r.department || '').trim() === (department || '').trim() && (r.participantName || '').trim() === (participantName || '').trim()
   );
-  const recentlyRegistered = session2.recentlyRegistered || [];
-  const myIdeasDisplay = [...recentlyRegistered, ...mySession2Ideas];
+  const myIdeasDisplay = mySession2Ideas;
   const tasksForIceRaw = [...baseIceTasks, ...selectedIdeasAsTasks].filter((t) => !isSampleTitle(t.title));
   const iceScoreForTask = (t) => iceScore(session1.evaluations?.[t.id]);
   const tasksForIce = [...tasksForIceRaw].sort((a, b) => {
@@ -532,12 +506,6 @@ export default function Home() {
     if (!t) return;
     const asIsVal = (asIs || '').trim();
     const toBeVal = (toBe || '').trim();
-    const newId = 'recent:' + id();
-
-    setSession2((s) => ({
-      ...s,
-      recentlyRegistered: [...(s.recentlyRegistered || []), { id: newId, title: t, asIs: asIsVal, toBe: toBeVal }],
-    }));
 
     try {
       await fetch('/api/prework', {
@@ -553,11 +521,11 @@ export default function Home() {
       });
       await fetchSharedSession2Ideas();
     } catch {
-      // 실패 시에도 로컬에는 이미 반영됨
+      // 실패 시 시트 반영 안 됨
     }
   };
   const toggleIdeaSelected = async (idea, isSheetIdea) => {
-    if (isSheetIdea && idea.rowIndex) {
+    if (isSheetIdea && idea.rowIndex != null) {
       const nextSelected = !idea.iceSelected;
       try {
         await fetch('/api/prework', {
@@ -1271,9 +1239,8 @@ export default function Home() {
               <div className="section-block">
                 <h3>내가 방금 등록한 아이디어</h3>
                 {myIdeasDisplay.map((r) => {
-                  const isSheet = !!r.rowIndex;
-                  const key = isSheet ? `s2row:${r.rowIndex}` : (r.id || makeSharedIdeaId(r));
-                  const selected = isSheet ? !!r.iceSelected : selectedIds.includes(r.id);
+                  const key = `s2row:${r.rowIndex ?? 0}`;
+                  const selected = !!r.iceSelected;
                   return (
                     <div key={key} className={`task-card session2-registered ${selected ? 'session2-selected' : ''}`} style={{ marginBottom: 10 }}>
                       <div style={{ flex: 1 }}>
@@ -1282,7 +1249,7 @@ export default function Home() {
                         {r.toBe ? <p className="desc"><strong>TO-BE:</strong> {r.toBe}</p> : null}
                       </div>
                       <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                        <button type="button" className={`btn btn-sm ${selected ? 'btn-primary' : ''}`} onClick={() => toggleIdeaSelected(r, isSheet)}>
+                        <button type="button" className={`btn btn-sm ${selected ? 'btn-primary' : ''}`} onClick={() => toggleIdeaSelected(r, true)}>
                           {selected ? 'ICE 대상에서 제거' : '과제 리스트에 추가하기'}
                         </button>
                       </div>
