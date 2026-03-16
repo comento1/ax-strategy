@@ -233,7 +233,14 @@ export default function Home() {
         if (t === 'workflow_split' && data.text) {
           applySplitFromText(data.text);
           setAiResult('');
-        } else setAiResult(data.text || '');
+        } else {
+          let text = data.text || '';
+          // 과제 제안의 경우 "과제 1." 같은 이중 번호를 완화
+          if (t === 'task') {
+            text = text.replace(/^과제\s+\d+\.\s*/gm, '과제 ');
+          }
+          setAiResult(text);
+        }
       }
     } catch (e) {
       setAiResult('오류: ' + e.message);
@@ -598,7 +605,8 @@ export default function Home() {
             <h3 className="strategy-dept-title">{currentViewDept}</h3>
             <div className="strategy-card-news">
               {listForView.map((s) => {
-                const cardTitle = (s.요약제목 || s['AI 적용 기대영역'] || s.제목 || s['핵심 한 줄 요약'] || '').trim() || '(제목 없음)';
+                // 카드 타이틀은 strategy 시트 B열(제목)을 우선 사용
+                const cardTitle = (s.제목 || '').trim() || '(제목 없음)';
                 const cardDesc = (s._G열 || s.요약설명 || s.리스트설명 || s.내용 || '').trim();
                 const isMyDept = (s.작성본부 || '').trim() === (department || '').trim();
                 return (
@@ -781,14 +789,15 @@ export default function Home() {
                   <div className="ai-assist-box ai-box-task">
                     <button
                       type="button"
-                      className="btn btn-sm btn-primary"
+                      className="btn-example-primary"
                       disabled={aiLoading}
                       onClick={() => callAi('task')}
                     >
+                      <span className="btn-example-icon">✨</span>
                       {aiLoading ? '생성 중…' : '워크플로우 기반으로 AI 과제 제안 받기'}
                     </button>
                     {aiType === 'task' && aiResult && (
-                      <div className="result">
+                      <div className="ai-task-result">
                         <ReactMarkdown>{aiResult}</ReactMarkdown>
                       </div>
                     )}
@@ -841,7 +850,6 @@ export default function Home() {
                           if (lines.length === 0) return;
                           const title = lines[0].replace(/^[-•]\s*/, '').trim();
                           const desc = lines.slice(1).join('\n').trim();
-                          addTask('low');
                           setPrework((p) => ({
                             ...p,
                             taskCandidates: [
@@ -951,63 +959,7 @@ export default function Home() {
               </div>
             ))}
           </div>
-          <div className="section-block session1-section session1-ice-section">
-            <h3>ICE 정량 평가</h3>
-            <p className="section-sub">각 과제에 1~10점을 부여하고, 1·2·3순위를 선택하세요. ICE 점수 높은 순으로 정렬됩니다.</p>
-            <ul className="ice-criteria-list">
-              <li><strong>전략 부합도</strong> — 임원진이 규명한 조직 문제를 해결하는가?</li>
-              <li><strong>구현 가능성</strong> — 사내 보안·인프라 환경 내에서 구현 가능한가?</li>
-              <li><strong>데이터 확보성</strong> — 필요한 데이터가 확보되어 있거나 확보 가능한가?</li>
-            </ul>
-            <div style={{ overflowX: 'auto' }}>
-              <table className="ice-table">
-                <thead>
-                  <tr>
-                    <th>과제</th>
-                    <th>전략 부합도<br/><small>(1~10)</small></th>
-                    <th>구현 가능성<br/><small>(1~10)</small></th>
-                    <th>데이터 확보성<br/><small>(1~10)</small></th>
-                    <th>ICE 점수</th>
-                    <th>순위</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tasksForIce.map((t) => (
-                    <tr key={t.id}>
-                      <td><strong>{t.title || '(제목 없음)'}</strong><br /><small>{t.desc}</small></td>
-                      <td>
-                        <select value={session1.evaluations?.[t.id]?.impact ?? ''} onChange={(e) => updateIce(t.id, 'impact', e.target.value)}>
-                          <option value="">선택</option>
-                          {[1,2,3,4,5,6,7,8,9,10].map((n) => <option key={n} value={n}>{n}점</option>)}
-                        </select>
-                      </td>
-                      <td>
-                        <select value={session1.evaluations?.[t.id]?.ease ?? ''} onChange={(e) => updateIce(t.id, 'ease', e.target.value)}>
-                          <option value="">선택</option>
-                          {[1,2,3,4,5,6,7,8,9,10].map((n) => <option key={n} value={n}>{n}점</option>)}
-                        </select>
-                      </td>
-                      <td>
-                        <select value={session1.evaluations?.[t.id]?.confidence ?? ''} onChange={(e) => updateIce(t.id, 'confidence', e.target.value)}>
-                          <option value="">선택</option>
-                          {[1,2,3,4,5,6,7,8,9,10].map((n) => <option key={n} value={n}>{n}점</option>)}
-                        </select>
-                      </td>
-                      <td className="ice-score">{iceScore(session1.evaluations?.[t.id]) ?? '—'}</td>
-                      <td>
-                        <select value={session1.priorityRanks?.[t.id] ?? ''} onChange={(e) => setPriorityRank(t.id, e.target.value)}>
-                          <option value="">선택</option>
-                          <option value="1">1순위</option>
-                          <option value="2">2순위</option>
-                          <option value="3">3순위</option>
-                        </select>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          {/* ICE 정량 평가는 세션2 이후로 이동 */}
         </main>
       </div>
     );
@@ -1076,6 +1028,65 @@ export default function Home() {
                 {selectedIds.length > 0 && <span className="section-sub" style={{ marginLeft: 8 }}>{selectedIds.length}개 선택됨</span>}
               </div>
             )}
+          </div>
+
+          {/* ICE 정량 평가: 세션2 아이디어까지 포함하여 평가 */}
+          <div className="section-block session1-ice-section">
+            <h3>ICE 정량 평가</h3>
+            <p className="section-sub">세션1·2에서 도출한 과제에 대해 1~10점을 부여하고, 1·2·3순위를 선택하세요. ICE 점수 높은 순으로 정렬됩니다.</p>
+            <ul className="ice-criteria-list">
+              <li><strong>전략 부합도</strong> — 임원진이 규명한 조직 문제를 해결하는가?</li>
+              <li><strong>구현 가능성</strong> — 사내 보안·인프라 환경 내에서 구현 가능한가?</li>
+              <li><strong>데이터 확보성</strong> — 필요한 데이터가 확보되어 있거나 확보 가능한가?</li>
+            </ul>
+            <div style={{ overflowX: 'auto' }}>
+              <table className="ice-table">
+                <thead>
+                  <tr>
+                    <th>과제</th>
+                    <th>전략 부합도<br/><small>(1~10)</small></th>
+                    <th>구현 가능성<br/><small>(1~10)</small></th>
+                    <th>데이터 확보성<br/><small>(1~10)</small></th>
+                    <th>ICE 점수</th>
+                    <th>순위</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tasksForIce.map((t) => (
+                    <tr key={t.id}>
+                      <td><strong>{t.title || '(제목 없음)'}</strong><br /><small>{t.desc}</small></td>
+                      <td>
+                        <select value={session1.evaluations?.[t.id]?.impact ?? ''} onChange={(e) => updateIce(t.id, 'impact', e.target.value)}>
+                          <option value="">선택</option>
+                          {[1,2,3,4,5,6,7,8,9,10].map((n) => <option key={n} value={n}>{n}점</option>)}
+                        </select>
+                      </td>
+                      <td>
+                        <select value={session1.evaluations?.[t.id]?.ease ?? ''} onChange={(e) => updateIce(t.id, 'ease', e.target.value)}>
+                          <option value="">선택</option>
+                          {[1,2,3,4,5,6,7,8,9,10].map((n) => <option key={n} value={n}>{n}점</option>)}
+                        </select>
+                      </td>
+                      <td>
+                        <select value={session1.evaluations?.[t.id]?.confidence ?? ''} onChange={(e) => updateIce(t.id, 'confidence', e.target.value)}>
+                          <option value="">선택</option>
+                          {[1,2,3,4,5,6,7,8,9,10].map((n) => <option key={n} value={n}>{n}점</option>)}
+                        </select>
+                      </td>
+                      <td className="ice-score">{iceScore(session1.evaluations?.[t.id]) ?? '—'}</td>
+                      <td>
+                        <select value={session1.priorityRanks?.[t.id] ?? ''} onChange={(e) => setPriorityRank(t.id, e.target.value)}>
+                          <option value="">선택</option>
+                          <option value="1">1순위</option>
+                          <option value="2">2순위</option>
+                          <option value="3">3순위</option>
+                        </select>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </main>
       </div>

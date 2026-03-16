@@ -14,6 +14,19 @@ var QUESTIONS_SHEET_NAME = 'Questions';
 var SESSION2_SHEET_NAME = 'Session2Selections';
 var SESSION3_SHEET_NAME = 'Session3Definitions';
 
+// 샘플/테스트 데이터 제목 판별 (웹 서비스에서 노출하지 않기 위함)
+function isSampleTitle(title) {
+  if (!title) return false;
+  var t = String(title).trim();
+  if (!t) return false;
+  // ZERO 브랜드 샘플
+  if (t.indexOf('ZERO 브랜드 라인업 확대') >= 0) return true;
+  // 단순 테스트용 제목
+  if (t === '테스트' || t === '테스트 2') return true;
+  if (t === 'ㅁㄴㅇ' || t === 'ㅁㄴㅇ ㅁㄴㅁㅁㄴ') return true;
+  return false;
+}
+
 function getSheet() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(SHEET_NAME);
@@ -132,7 +145,11 @@ function doGet(e) {
               if (key === '작성본부' && val) deptSet[val] = true;
             }
             if (headers.length > 6 && row[6] != null) obj['_G열'] = String(row[6]).trim();
-            strategies.push(obj);
+            // 전략 시트에도 샘플 행이 있을 수 있으므로, 제목 기준으로 필터링
+            var titleVal = obj['제목'] || obj['AI 적용 기대영역'] || '';
+            if (!isSampleTitle(titleVal)) {
+              strategies.push(obj);
+            }
           }
           departments = Object.keys(deptSet).sort();
         }
@@ -175,7 +192,7 @@ function doGet(e) {
         var title2 = titleIdx >= 0 && row2[titleIdx] != null ? String(row2[titleIdx]).trim() : '';
         if (!title2) continue;
         // 워크숍 설계 시 사용한 샘플/테스트 행은 노출하지 않음
-        if (title2.indexOf('ZERO 브랜드 라인업 확대') >= 0 || title2 === '테스트' || title2 === '테스트 2') continue;
+        if (isSampleTitle(title2)) continue;
 
         ideas.push({
           department: dept2,
@@ -280,14 +297,8 @@ function doGet(e) {
       if (filterDept && rowDept.toLowerCase() !== filterDept) continue;
 
       // 워크숍 설계 시 사용한 테스트/샘플 데이터는 세션 화면에 노출하지 않도록 필터링
-      // 예: "[ZERO 브랜드 라인업 확대 및 헬스&웰니스 카테고리 강화]", "테스트", "테스트 2"
       var titleVal = titleCol >= 0 && row[titleCol] != null ? String(row[titleCol]).trim() : '';
-      if (!titleVal) titleVal = '';
-      var isSample =
-        titleVal.indexOf('ZERO 브랜드 라인업 확대') >= 0 ||
-        titleVal === '테스트' ||
-        titleVal === '테스트 2';
-      if (isSample) continue;
+      if (isSampleTitle(titleVal)) continue;
 
       result.push({
         id: row[idCol] || '',

@@ -1,5 +1,14 @@
 @import '../css/style.css';
 
+/* 공통: 워크플로우 예시/AI 제안 큰 버튼 그림자 제거 */
+.btn-example-primary {
+  box-shadow: none !important;
+}
+.btn-example-primary:hover {
+  transform: none !important;
+  box-shadow: none !important;
+}
+
 /* 진입·본부 선택·전략 리뷰 */
 .entry-screen { padding: 40px 24px; text-align: center; max-width: 480px; margin: 0 auto; }
 .entry-screen h1 { font-size: 18px; margin: 0 0 8px; }
@@ -183,6 +192,26 @@
 .ai-box-workflow { margin-bottom: 16px; }
 .ai-box-split { margin-bottom: 16px; }
 .ai-box-task { margin-bottom: 12px; }
+
+/* AI 과제 제안 결과 행간/간격 */
+.ai-task-result {
+  margin-top: 10px;
+  padding: 10px;
+  background: var(--color-background-primary);
+  border-radius: 6px;
+  font-size: 12px;
+}
+.ai-task-result p {
+  margin: 4px 0;
+  line-height: 1.6;
+}
+.ai-task-result > * + * {
+  margin-top: 8px;
+}
+.ai-task-result strong {
+  display: block;
+  margin-bottom: 2px;
+}
 .task-add-buttons { display: flex; gap: 8px; margin-bottom: 10px; }
 .task-level-badge { font-size: 10px; padding: 2px 6px; border-radius: 6px; margin-right: 8px; flex-shrink: 0; }
 .task-level-badge.level-high { background: var(--color-background-info); color: var(--color-text-info); }
@@ -229,7 +258,7 @@
 .wf-example-markdown .wf-example-body { margin-top: 10px; padding: 12px; background: var(--color-background-primary); border-radius: var(--border-radius-md); font-size: 12px; line-height: 1.6; }
 .wf-example-markdown .wf-example-body h1, .wf-example-markdown .wf-example-body h2 { font-size: 14px; margin: 12px 0 6px; }
 .wf-example-markdown .wf-example-body h2:first-child { margin-top: 0; }
-.wf-example-markdown .wf-example-body ul { margin: 6px 0; padding-left: 20px; }
+.wf-example-markdown .wf-example-body ul { margin: 4px 0 0; padding-left: 20px; }
 .wf-example-markdown .wf-example-body p { margin: 4px 0; }
 
 /* 과제 후보: 워크플로우 플로우차트 */
