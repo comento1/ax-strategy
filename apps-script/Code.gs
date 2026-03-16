@@ -1,20 +1,17 @@
 /**
  * 롯데웰푸드 AX 전략 구체화 — 사전과제 저장/조회용 Web App
  *
- * 사용법:
- * 1. 구글 시트를 새로 만들거나 기존 시트 열기
- * 2. 확장프로그램 → Google Apps Script 열기
- * 3. 이 코드 붙여넣기 후 저장
- * 4. 배포 → 새 배포 → 유형: 웹 앱
- *    - 실행 사용자: 나
- *    - 앱에 액세스할 수 있는 사용자: 모든 사용자 (또는 조직 내)
- * 5. 배포 URL 복사 → Next.js .env 에 GOOGLE_APPS_SCRIPT_WEBAPP_URL 로 설정
+ * 시트 구성:
+ * - "Prework": 사전과제 제출 (Id, Department, ParticipantName, ParticipantPosition, ...)
+ * - "logo": A1 셀에 로고 이미지 URL 입력 시 웹 앱 상단 로고로 사용
  *
- * 시트: 시트 이름 "Prework" (없으면 자동 생성)
- * 컬럼: Id | Department | ParticipantName | SelectedStrategyId | StrategyTitle | WorkflowSteps | TaskCandidates | Questions | CreatedAt
+ * doGet 파라미터:
+ * - action=logo → 로고 시트 A1 값 반환 { logoUrl: "..." }
+ * - department=XXX → 해당 본부 사전과제 목록 반환
  */
 
 var SHEET_NAME = 'Prework';
+var LOGO_SHEET_NAME = 'logo';
 
 function getSheet() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -22,17 +19,33 @@ function getSheet() {
   if (!sheet) {
     sheet = ss.insertSheet(SHEET_NAME);
     sheet.appendRow([
-      'Id', 'Department', 'ParticipantName', 'SelectedStrategyId', 'StrategyTitle',
+      'Id', 'Department', 'ParticipantName', 'ParticipantPosition', 'SelectedStrategyId', 'StrategyTitle',
       'WorkflowSteps', 'TaskCandidates', 'Questions', 'CreatedAt'
     ]);
-    sheet.getRange(1, 1, 1, 9).setFontWeight('bold');
+    sheet.getRange(1, 1, 1, 10).setFontWeight('bold');
   }
   return sheet;
 }
 
 function doGet(e) {
+  var params = e && e.parameter ? e.parameter : {};
+  if (params.action === 'logo') {
+    try {
+      var ss = SpreadsheetApp.getActiveSpreadsheet();
+      var logoSheet = ss.getSheetByName(LOGO_SHEET_NAME);
+      var logoUrl = '';
+      if (logoSheet) {
+        var a1 = logoSheet.getRange('A1').getValue();
+        if (a1 != null) logoUrl = String(a1).trim();
+      }
+      return jsonResponse({ logoUrl: logoUrl });
+    } catch (err) {
+      return jsonResponse({ logoUrl: '' });
+    }
+  }
+
   var result = [];
-  var department = (e && e.parameter && e.parameter.department) ? String(e.parameter.department).trim() : '';
+  var department = params.department ? String(params.department).trim() : '';
 
   try {
     var sheet = getSheet();
@@ -45,6 +58,7 @@ function doGet(e) {
     var idCol = headers.indexOf('Id');
     var deptCol = headers.indexOf('Department');
     var nameCol = headers.indexOf('ParticipantName');
+    var positionCol = headers.indexOf('ParticipantPosition');
     var strategyIdCol = headers.indexOf('SelectedStrategyId');
     var titleCol = headers.indexOf('StrategyTitle');
     var wfCol = headers.indexOf('WorkflowSteps');
@@ -79,6 +93,7 @@ function doGet(e) {
         id: row[idCol] || '',
         department: rowDept,
         participantName: row[nameCol] != null ? String(row[nameCol]) : '익명',
+        participantPosition: positionCol >= 0 && row[positionCol] != null ? String(row[positionCol]) : '',
         selectedStrategyId: row[strategyIdCol] != null ? String(row[strategyIdCol]) : null,
         strategyTitle: row[titleCol] != null ? String(row[titleCol]) : null,
         workflowSteps: wf,
@@ -101,6 +116,7 @@ function doPost(e) {
 
     var department = data.department != null ? String(data.department).trim() : 'default';
     var participantName = data.participantName != null ? String(data.participantName) : '익명';
+    var participantPosition = data.participantPosition != null ? String(data.participantPosition) : '';
     var selectedStrategyId = data.selectedStrategyId != null ? String(data.selectedStrategyId) : '';
     var strategyTitle = data.strategyTitle != null ? String(data.strategyTitle) : '';
     var workflowSteps = Array.isArray(data.workflowSteps) ? data.workflowSteps : [];
@@ -115,6 +131,7 @@ function doPost(e) {
       id,
       department,
       participantName,
+      participantPosition,
       selectedStrategyId,
       strategyTitle,
       JSON.stringify(workflowSteps),

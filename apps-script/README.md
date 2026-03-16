@@ -23,12 +23,19 @@
   `GOOGLE_APPS_SCRIPT_WEBAPP_URL=복사한_URL`
 - Vercel: **Settings** → **Environment Variables** 에 동일하게 추가.
 
-## 4. 시트 구조 (자동 생성)
+## 4. 시트 구조
 
+### Prework (자동 생성)
 **Prework** 시트가 없으면 첫 호출 시 자동으로 생성됩니다.
 
-| Id | Department | ParticipantName | SelectedStrategyId | StrategyTitle | WorkflowSteps | TaskCandidates | Questions | CreatedAt |
-|----|------------|-----------------|--------------------|--------------|--------------|----------------|-----------|-----------|
-| pw-... | 영업본부 | 홍길동 | strat-1 | ... | [...] | [...] | [...] | ISO 날짜 |
+| Id | Department | ParticipantName | ParticipantPosition | SelectedStrategyId | StrategyTitle | WorkflowSteps | TaskCandidates | Questions | CreatedAt |
+|----|------------|-----------------|---------------------|--------------------|--------------|--------------|----------------|-----------|-----------|
+| pw-... | 영업본부 | 홍길동 | 팀장 | strat-1 | ... | [...] | [...] | [...] | ISO 날짜 |
 
+- 이름·직급은 진입 화면에서 수집되어 위 컬럼에 저장됩니다.
+- 기존에 Prework 시트를 이미 만든 경우, 4번째 컬럼에 **ParticipantPosition** 헤더를 수동으로 추가하면 직급이 정리되어 보입니다.
 - WorkflowSteps, TaskCandidates, Questions 는 JSON 문자열로 저장됩니다.
+
+### logo (로고 URL)
+- 시트 이름 **"logo"** 인 시트를 만들고 **A1 셀**에 로고 이미지 URL을 입력하면, 웹 앱 상단 왼쪽에 해당 이미지가 로고로 표시됩니다.
+- URL은 공개 접근 가능한 이미지 주소여야 합니다.
