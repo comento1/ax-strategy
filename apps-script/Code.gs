@@ -289,7 +289,7 @@ function doGet(e) {
     var strategyIdCol = headers.indexOf('SelectedStrategyId') >= 0 ? headers.indexOf('SelectedStrategyId') : headers.indexOf('선택전략ID');
     var titleCol = headers.indexOf('StrategyTitle') >= 0 ? headers.indexOf('StrategyTitle') : (headers.indexOf('선택한 영역') >= 0 ? headers.indexOf('선택한 영역') : 6);
     var wfCol = headers.indexOf('WorkflowSteps') >= 0 ? headers.indexOf('WorkflowSteps') : headers.indexOf('워크플로우');
-    var taskCol = headers.indexOf('TaskCandidates') >= 0 ? headers.indexOf('TaskCandidates') : (headers.indexOf('과제후보') >= 0 ? headers.indexOf('과제후보') : 7); // H열 fallback
+    var taskCol = headers.indexOf('TaskCandidates') >= 0 ? headers.indexOf('TaskCandidates') : (headers.indexOf('과제후보') >= 0 ? headers.indexOf('과제후보') : (headers.indexOf('과제목록') >= 0 ? headers.indexOf('과제목록') : 7)); // H열 fallback
     var createdCol = headers.indexOf('CreatedAt') >= 0 ? headers.indexOf('CreatedAt') : headers.indexOf('제출일시');
     if (deptCol < 0) deptCol = 0; // A열(제출본부) 기준 fallback
     if (nameCol < 0) nameCol = 2; // C열(제출자) 기준 fallback

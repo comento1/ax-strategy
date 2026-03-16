@@ -130,9 +130,7 @@ export default function Home() {
     if (phase === 'session2') fetchSharedSession2Ideas();
   }, [phase, fetchSharedSession2Ideas]);
 
-  // Prework 시트 H열(과제목록) 기반 ICE 과제 로드 — 세션2에서 실제 시트 데이터 사용
-  useEffect(() => {
-    if (phase !== 'session2') return;
+  const fetchIcePreworkTasks = useCallback(() => {
     const dept = (department || '').trim();
     if (!dept) { setIcePreworkTasks([]); return; }
     fetch(`/api/prework?department=${encodeURIComponent(dept)}`)
@@ -149,7 +147,17 @@ export default function Home() {
         setIcePreworkTasks(flat.filter((t) => !isSampleTitle(t.title)));
       })
       .catch(() => setIcePreworkTasks([]));
-  }, [phase, department]);
+  }, [department]);
+
+  // Prework 시트 H열(과제목록) 기반 ICE 과제 로드 — 세션2 진입 시 + ICE 단계 진입 시 재조회
+  useEffect(() => {
+    if (phase !== 'session2') return;
+    fetchIcePreworkTasks();
+  }, [phase, department, fetchIcePreworkTasks]);
+
+  useEffect(() => {
+    if (phase === 'session2' && session2Step === 'ice') fetchIcePreworkTasks();
+  }, [phase, session2Step, fetchIcePreworkTasks]);
 
   // 시트에서 본인 아이디어가 반영되면 recentlyRegistered에서 제거
   useEffect(() => {
@@ -426,10 +434,16 @@ export default function Home() {
     if (!ev || ev.impact == null || ev.ease == null || ev.confidence == null) return null;
     return Math.round(((ev.impact + ev.ease + ev.confidence) / 3) * 10) / 10;
   };
-  const baseIceTasks = agreedTasks.length > 0 ? agreedTasks : [
-    ...icePreworkTasks,
-    ...(session2.extraB || []).map((t) => ({ ...t, source: 'extraB' })),
-  ];
+  // 세션2 ICE에서는 항상 Prework 시트(H열) + 선정 아이디어만 사용. agreedTasks(샘플 가능)는 사용하지 않음.
+  const baseIceTasks = phase === 'session2'
+    ? [
+        ...icePreworkTasks,
+        ...(session2.extraB || []).map((t) => ({ ...t, source: 'extraB' })),
+      ]
+    : (agreedTasks.length > 0 ? agreedTasks : [
+        ...icePreworkTasks,
+        ...(session2.extraB || []).map((t) => ({ ...t, source: 'extraB' })),
+      ]);
   const selectedIdsForIdeas = session2.selectedIds || [];
   const selectedIdeasAsTasks = [
     ...(sharedSession2Ideas || [])
