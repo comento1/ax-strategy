@@ -61,6 +61,8 @@ export default function Home() {
     const local = loadLocal();
     return local?.session2 || { ideas: [], recommended: [], extraB: [], registeredIdeas: [], selectedIds: [] };
   });
+  const [sharedSession2Ideas, setSharedSession2Ideas] = useState([]);
+  const [viewSession2Dept, setViewSession2Dept] = useState(''); // 세션2 공유 아이디어 조회용 본부
   const [session3, setSession3] = useState(() => {
     const local = loadLocal();
     return local?.session3 || { definitions: {} };
@@ -94,25 +96,35 @@ export default function Home() {
   const [session2DraftToBe, setSession2DraftToBe] = useState('');
   const [taskDraftText, setTaskDraftText] = useState(''); // 과제 도출용 초안 (과제화하기)
   const [session2Step, setSession2Step] = useState('ideas'); // ideas | ice
-  const [session2ViewDept, setSession2ViewDept] = useState(''); // 세션2 대시보드 조회용 본부(전체=빈값)
-  const [sharedSession2Ideas, setSharedSession2Ideas] = useState([]); // 시트에 저장된 아이디어(모두 조회)
 
   useEffect(() => {
     if (phase === 'session2') setSession2Step('ideas');
   }, [phase]);
 
+  const makeSharedIdeaId = useCallback((idea) => {
+    const dept = (idea?.department || '').trim();
+    const name = (idea?.participantName || '').trim();
+    const created = (idea?.createdAt || '').trim();
+    const title = (idea?.title || '').trim();
+    return `s2:${dept}:${name}:${created}:${title}`;
+  }, []);
+
+  const fetchSharedSession2Ideas = useCallback(async () => {
+    const dept = (viewSession2Dept || department || '').trim();
+    if (!dept) { setSharedSession2Ideas([]); return; }
+    try {
+      const res = await fetch(`/api/prework?action=session2&department=${encodeURIComponent(dept)}`);
+      const data = await res.json();
+      const ideas = Array.isArray(data?.ideas) ? data.ideas : [];
+      setSharedSession2Ideas(ideas.filter((x) => !isSampleTitle(x.title)));
+    } catch {
+      setSharedSession2Ideas([]);
+    }
+  }, [viewSession2Dept, department]);
+
   useEffect(() => {
-    if (phase !== 'session2') return;
-    const dept = (session2ViewDept || '').trim();
-    const qs = dept ? `?action=session2&department=${encodeURIComponent(dept)}` : `?action=session2`;
-    fetch(`/api/prework${qs}`)
-      .then((r) => r.json())
-      .then((d) => {
-        const ideas = Array.isArray(d?.ideas) ? d.ideas : [];
-        setSharedSession2Ideas(ideas.filter((x) => !isSampleTitle(x?.title)));
-      })
-      .catch(() => setSharedSession2Ideas([]));
-  }, [phase, session2ViewDept]);
+    if (phase === 'session2') fetchSharedSession2Ideas();
+  }, [phase, fetchSharedSession2Ideas]);
 
   useEffect(() => {
     fetch('/api/logo')
@@ -380,13 +392,9 @@ export default function Home() {
     ...(prework.taskCandidates || []),
     ...(session2.extraB || []).map((t) => ({ ...t, source: 'extraB' })),
   ];
-  const allSession2Ideas = [
-    ...(sharedSession2Ideas || []),
-    ...(session2.registeredIdeas || []),
-  ];
-  const selectedIdeasAsTasks = allSession2Ideas
-    .filter((r) => (session2.selectedIds || []).includes(r.id))
-    .map((r) => ({ id: r.id, title: r.title, desc: [r.asIs, r.toBe].filter(Boolean).join('\n\n'), source: 'session2_idea' }));
+  const selectedIdeasAsTasks = (sharedSession2Ideas || [])
+    .filter((r) => (session2.selectedIds || []).includes(makeSharedIdeaId(r)))
+    .map((r) => ({ id: makeSharedIdeaId(r), title: r.title, desc: [r.asIs, r.toBe].filter(Boolean).join('\n\n'), source: 'session2_idea' }));
   const tasksForIceRaw = [...baseIceTasks, ...selectedIdeasAsTasks].filter((t) => !isSampleTitle(t.title));
   const iceScoreForTask = (t) => iceScore(session1.evaluations?.[t.id]);
   const tasksForIce = [...tasksForIceRaw].sort((a, b) => {
@@ -439,26 +447,19 @@ export default function Home() {
   const registeredIdeas = session2.registeredIdeas || [];
   const selectedIds = session2.selectedIds || [];
   const registerIdea = async (title, asIs, toBe) => {
-    if (!(title || '').trim()) return;
-    const localIdea = {
-      id: id(),
-      title: (title || '').trim(),
-      asIs: (asIs || '').trim(),
-      toBe: (toBe || '').trim(),
-    };
-    // 로컬에도 즉시 반영(화면 즉시 표시)
-    setSession2((s) => ({
-      ...s,
-      registeredIdeas: [...(s.registeredIdeas || []), localIdea],
-    }));
-    // 시트에도 저장(모두가 조회 가능하도록)
+    const t = (title || '').trim();
+    if (!t) return;
+    const localIdea = { id: id(), title: t, asIs: (asIs || '').trim(), toBe: (toBe || '').trim() };
+    setSession2((s) => ({ ...s, registeredIdeas: [...(s.registeredIdeas || []), localIdea] }));
+
+    // 시트에 저장(공유) 후, 공유 리스트 새로고침
     try {
       await fetch('/api/prework', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'session2',
-          department: department || '',
+          department: (department || '').trim(),
           participantName: participantName || '익명',
           participantPosition: participantPosition || '',
           items: [{
@@ -466,23 +467,13 @@ export default function Home() {
             asIs: localIdea.asIs,
             toBe: localIdea.toBe,
             desc: [localIdea.asIs, localIdea.toBe].filter(Boolean).join('\n\n'),
-            type: 'new',
           }],
         }),
       });
-      // 저장 후 최신 목록 재조회
-      const dept = (session2ViewDept || '').trim();
-      const qs = dept ? `?action=session2&department=${encodeURIComponent(dept)}` : `?action=session2`;
-      fetch(`/api/prework${qs}`)
-        .then((r) => r.json())
-        .then((d) => {
-          const ideas = Array.isArray(d?.ideas) ? d.ideas : [];
-          setSharedSession2Ideas(ideas.filter((x) => !isSampleTitle(x?.title)));
-        })
-        .catch(() => {});
-    } catch (e) {
-      // 시트 저장 실패해도 로컬은 유지
+    } catch {
+      // 로컬 등록은 유지
     }
+    fetchSharedSession2Ideas();
   };
   const toggleIdeaSelected = (ideaId) => {
     setSession2((s) => {
@@ -1143,50 +1134,22 @@ export default function Home() {
               <p className="body">아이디어를 작성한 뒤 등록하고, 「과제 리스트에 추가하기」 버튼으로 ICE 정량 평가 대상으로 올려 주세요. ICE에서 1~3순위를 부여한 과제만 세션 3에 반영됩니다.</p>
             </div>
           </div>
+          <div className="view-dept-wrap" style={{ marginBottom: 14 }}>
+            <label className="view-dept-label">아이디어 조회 본부</label>
+            <select
+              className="view-dept-select"
+              value={viewSession2Dept || department || ''}
+              onChange={(e) => { setViewSession2Dept(e.target.value || ''); }}
+            >
+              <option value={department || ''}>{department || '(내 본부)'}</option>
+              {(strategies.departments || []).filter((d) => d !== department).map((d) => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
+            <button type="button" className="btn btn-sm" onClick={fetchSharedSession2Ideas}>새로고침</button>
+          </div>
           {session2Step === 'ideas' ? (
             <>
-              <div className="section-block">
-                <h3>아이디어 전체 조회</h3>
-                <p className="section-sub">시트에 저장된 아이디어를 모두 조회하고, 선택하여 ICE 평가 대상으로 올릴 수 있습니다.</p>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <label className="view-dept-label">조회 본부</label>
-                  <select className="view-dept-select" value={session2ViewDept} onChange={(e) => setSession2ViewDept(e.target.value || '')}>
-                    <option value="">전체</option>
-                    {(strategies.departments || []).map((d) => (
-                      <option key={d} value={d}>{d}</option>
-                    ))}
-                  </select>
-                  <button type="button" className="btn btn-sm" onClick={() => {
-                    const dept = (session2ViewDept || '').trim();
-                    const qs = dept ? `?action=session2&department=${encodeURIComponent(dept)}` : `?action=session2`;
-                    fetch(`/api/prework${qs}`).then((r) => r.json()).then((d) => {
-                      const ideas = Array.isArray(d?.ideas) ? d.ideas : [];
-                      setSharedSession2Ideas(ideas.filter((x) => !isSampleTitle(x?.title)));
-                    }).catch(() => setSharedSession2Ideas([]));
-                  }}>새로고침</button>
-                </div>
-                {sharedSession2Ideas.length === 0 ? (
-                  <p className="section-sub" style={{ marginTop: 10 }}>공유된 아이디어가 없습니다. 아래에서 아이디어를 등록해 주세요.</p>
-                ) : (
-                  <div style={{ marginTop: 10 }}>
-                    {sharedSession2Ideas.map((r) => (
-                      <div key={r.id} className={`task-card session2-registered ${selectedIds.includes(r.id) ? 'session2-selected' : ''}`}>
-                        <div style={{ flex: 1 }}>
-                          <p className="title">{r.title || '(제목 없음)'}</p>
-                          <p className="section-sub" style={{ margin: '2px 0 6px' }}>{r.department || ''}{r.participantName ? ` · ${r.participantName}` : ''}{r.createdAt ? ` · ${r.createdAt}` : ''}</p>
-                          {r.asIs && <p className="desc"><strong>AS-IS:</strong> {r.asIs}</p>}
-                          {r.toBe && <p className="desc"><strong>TO-BE:</strong> {r.toBe}</p>}
-                        </div>
-                        <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                          <button type="button" className={`btn btn-sm ${selectedIds.includes(r.id) ? 'btn-primary' : ''}`} onClick={() => toggleIdeaSelected(r.id)}>
-                            {selectedIds.includes(r.id) ? 'ICE 대상에서 제거' : 'ICE 대상으로 선정'}
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
               <div className="section-block">
                 <button type="button" className="btn btn-sm" style={{ marginBottom: 12 }} onClick={() => setPhase('session1')}>← 세션 1로</button>
                 <h3>아이디어 작성</h3>
@@ -1198,31 +1161,38 @@ export default function Home() {
                   <label className="session2-field-label">TO-BE (바꾸고 싶은 방향·목표)</label>
                   <textarea placeholder="TO-BE 내용" value={session2DraftToBe} onChange={(e) => setSession2DraftToBe(e.target.value)} rows={3} style={{ width: '100%', padding: 8, marginTop: 4 }} />
                   <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <button type="button" className="btn btn-primary" onClick={async () => { await registerIdea(session2DraftTitle, session2DraftAsIs, session2DraftToBe); setSession2DraftTitle(''); setSession2DraftAsIs(''); setSession2DraftToBe(''); }}>
+                    <button type="button" className="btn btn-primary" onClick={() => { registerIdea(session2DraftTitle, session2DraftAsIs, session2DraftToBe); setSession2DraftTitle(''); setSession2DraftAsIs(''); setSession2DraftToBe(''); }}>
                       등록
                     </button>
-                    <span className="section-sub">등록 {registeredIdeas.length}개 · ICE 대상 {(session2.selectedIds || []).length}개</span>
+                    <span className="section-sub">공유 아이디어 {sharedSession2Ideas.length}개 · ICE 대상 {(session2.selectedIds || []).length}개</span>
                   </div>
                 </div>
               </div>
               <div className="section-block">
-                <h3>내가 방금 등록한 아이디어</h3>
-                <p className="section-sub">등록 직후 바로 보이는 로컬 목록입니다. 최종적으로는 상단 “아이디어 전체 조회”에 표시됩니다.</p>
-                {registeredIdeas.length === 0 && <p className="section-sub">아직 등록한 아이디어가 없습니다.</p>}
-                {registeredIdeas.filter((r) => !isSampleTitle(r.title)).map((r) => (
-                  <div key={r.id} className="task-card session2-registered">
+                <h3>아이디어 대시보드 (공유 조회/선정)</h3>
+                <p className="section-sub">새로운 주제를 함께 검토한 뒤, ICE 평가 대상으로 올릴 항목을 「과제 리스트에 추가하기」로 선정하세요.</p>
+                {sharedSession2Ideas.length === 0 && <p className="section-sub">등록된 아이디어가 없습니다. 위에서 작성 후 등록해 주세요.</p>}
+                {sharedSession2Ideas.map((r) => {
+                  const rid = makeSharedIdeaId(r);
+                  const selected = selectedIds.includes(rid);
+                  return (
+                  <div key={rid} className={`task-card session2-registered ${selected ? 'session2-selected' : ''}`}>
                     <div style={{ flex: 1 }}>
                       <p className="title">{r.title || '(제목 없음)'}</p>
                       {r.asIs && <p className="desc"><strong>AS-IS:</strong> {r.asIs}</p>}
                       {r.toBe && <p className="desc"><strong>TO-BE:</strong> {r.toBe}</p>}
+                      <p className="section-sub" style={{ marginTop: 6, marginBottom: 0 }}>{r.participantName || '익명'} · {r.department || ''}</p>
                     </div>
                     <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                      <button type="button" className="btn btn-sm" onClick={() => removeRegisteredIdea(r.id)}>삭제</button>
+                      <button type="button" className={`btn btn-sm ${selected ? 'btn-primary' : ''}`} onClick={() => toggleIdeaSelected(rid)}>
+                        {selected ? 'ICE 대상에서 제거' : '과제 리스트에 추가하기'}
+                      </button>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
                 <div style={{ marginTop: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                  <span className="section-sub">{(session2.selectedIds || []).length > 0 ? `ICE 평가 대상 ${(session2.selectedIds || []).length}개 선택됨` : 'ICE 평가 대상으로 올릴 아이디어를 “아이디어 전체 조회”에서 선정해 주세요.'}</span>
+                  <span className="section-sub">{(session2.selectedIds || []).length > 0 ? `ICE 평가 대상 ${(session2.selectedIds || []).length}개 선택됨` : 'ICE 평가 대상으로 올릴 아이디어를 선택해 주세요.'}</span>
                   <button
                     type="button"
                     className="btn btn-primary"
