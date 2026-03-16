@@ -291,6 +291,7 @@ function doGet(e) {
     var wfCol = headers.indexOf('WorkflowSteps') >= 0 ? headers.indexOf('WorkflowSteps') : headers.indexOf('워크플로우');
     var taskCol = headers.indexOf('TaskCandidates') >= 0 ? headers.indexOf('TaskCandidates') : (headers.indexOf('과제후보') >= 0 ? headers.indexOf('과제후보') : 8);
     var createdCol = headers.indexOf('CreatedAt') >= 0 ? headers.indexOf('CreatedAt') : headers.indexOf('제출일시');
+    if (deptCol < 0) deptCol = 0; // A열(제출본부) 기준 fallback
     if (deptCol < 0) return jsonResponse({ error: '시트에 Department 또는 제출본부 컬럼이 없습니다.' }, 500);
 
     var filterDept = (department || '').toLowerCase();
@@ -307,9 +308,9 @@ function doGet(e) {
       var titleVal = titleCol >= 0 && row[titleCol] != null ? String(row[titleCol]).trim() : '';
       if (isSampleTitle(titleVal)) continue;
 
-      // 실명이 있는 행만 노출 (익명 또는 참가자명 비어 있으면 제외)
+      // 참가자 이름이 비어 있으면 '익명'으로 대체 (행은 유지)
       var pName = row[nameCol] != null ? String(row[nameCol]).trim() : '';
-      if (!pName || pName === '익명') continue;
+      if (!pName) pName = '익명';
 
       var wfRaw = wfCol >= 0 ? row[wfCol] : '';
       var taskRaw = taskCol >= 0 ? row[taskCol] : '';
@@ -402,7 +403,8 @@ function doPost(e) {
       var iso = new Date().toISOString();
       var rowData = [iso, dept3, pName3, taskId, taskTitle, def.reason || '', def.expectedChange || '', def.successCriteria || '', def.implementationNotes || '', def.keyMan || ''];
       if (rowIndex > 0) {
-        s3Sheet.getRange(rowIndex, 1, rowIndex, rowData.length).setValues([rowData]);
+        // 기존 행 업데이트 (하나의 행만)
+        s3Sheet.getRange(rowIndex, 1, 1, rowData.length).setValues([rowData]);
       } else {
         s3Sheet.appendRow(rowData);
       }

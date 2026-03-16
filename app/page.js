@@ -1053,7 +1053,7 @@ export default function Home() {
             <span className="icon">2</span>
             <div>
               <p className="title">세션 2 — 아이디어 발산</p>
-              <p className="body">아이디어를 작성한 뒤 등록하고, 세션 3으로 가져갈 항목을 「선택」하면 ICE 정량 평가 목록에 추가됩니다. ICE에서 1~3순위를 부여한 과제만 세션 3에 반영됩니다.</p>
+              <p className="body">아이디어를 작성한 뒤 등록하고, 「과제 리스트에 추가하기」 버튼으로 ICE 정량 평가 대상으로 올려 주세요. ICE에서 1~3순위를 부여한 과제만 세션 3에 반영됩니다.</p>
             </div>
           </div>
           <div className="section-block">
@@ -1073,7 +1073,7 @@ export default function Home() {
           </div>
           <div className="section-block">
             <h3>등록한 아이디어</h3>
-            <p className="section-sub">세션 3으로 검토할 항목을 「선택」하면 아래 ICE 정량 평가 테이블에 추가됩니다. ICE에서 1~3순위를 부여한 과제만 세션 3에 표시됩니다.</p>
+            <p className="section-sub">세션 3으로 검토할 항목을 「과제 리스트에 추가하기」로 선택하면 아래 ICE 정량 평가 테이블에 추가됩니다. ICE에서 1~3순위를 부여한 과제만 세션 3에 표시됩니다.</p>
             {registeredIdeas.length === 0 && <p className="section-sub">등록된 아이디어가 없습니다. 위에서 작성 후 등록해 주세요.</p>}
             {registeredIdeas.filter((r) => !isSampleTitle(r.title)).map((r) => (
               <div key={r.id} className={`task-card session2-registered ${selectedIds.includes(r.id) ? 'session2-selected' : ''}`}>
@@ -1084,7 +1084,7 @@ export default function Home() {
                 </div>
                 <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
                   <button type="button" className={`btn btn-sm ${selectedIds.includes(r.id) ? 'btn-primary' : ''}`} onClick={() => toggleIdeaSelected(r.id)}>
-                    {selectedIds.includes(r.id) ? '선택 해제' : '선택'}
+                    {selectedIds.includes(r.id) ? '과제 리스트에서 제거' : '과제 리스트에 추가하기'}
                   </button>
                   <button type="button" className="btn btn-sm" onClick={() => removeRegisteredIdea(r.id)}>삭제</button>
                 </div>
