@@ -30,6 +30,12 @@ function isSampleTitle(title) {
   return false;
 }
 
+// 본부 문자열 정규화 (공백 제거 + 소문자) — 본부별 필터 시 시트 표기 차이 보정
+function normalizeDept(s) {
+  if (s == null || s === '') return '';
+  return String(s).replace(/\s+/g, '').trim().toLowerCase();
+}
+
 function getSheet() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(SHEET_NAME);
@@ -191,13 +197,13 @@ function doGet(e) {
       var iceCol = headers2.indexOf('ICE선정');
       if (iceCol < 0 && headers2.length >= SESSION2_ICE_COL) iceCol = SESSION2_ICE_COL - 1;
 
-      var filterDept2 = params.department ? String(params.department).trim() : '';
+      var filterDept2 = normalizeDept(params.department);
       var ideas = [];
 
       for (var r = 1; r < data2.length; r++) {
         var row2 = data2[r];
-        var dept2 = deptIdx >= 0 && row2[deptIdx] != null ? String(row2[deptIdx]).trim() : '';
-        if (filterDept2 && (dept2 || '').toLowerCase() !== filterDept2.toLowerCase()) continue;
+        var dept2 = normalizeDept(deptIdx >= 0 ? row2[deptIdx] : '');
+        if (filterDept2 && dept2 !== filterDept2) continue;
 
         var title2 = titleIdx >= 0 && row2[titleIdx] != null ? String(row2[titleIdx]).trim() : '';
         if (!title2) continue;
@@ -206,9 +212,10 @@ function doGet(e) {
         var iceVal = iceCol >= 0 && row2[iceCol] != null ? String(row2[iceCol]).trim().toUpperCase() : '';
         var iceSelected = iceVal === 'Y' || iceVal === '1' || iceVal === 'TRUE';
 
+        var displayDept2 = deptIdx >= 0 && row2[deptIdx] != null ? String(row2[deptIdx]).trim() : '';
         ideas.push({
           rowIndex: r + 1,
-          department: dept2,
+          department: displayDept2 || dept2,
           title: title2,
           asIs: asIsIdx >= 0 && row2[asIsIdx] != null ? String(row2[asIsIdx]).trim() : '',
           toBe: toBeIdx >= 0 && row2[toBeIdx] != null ? String(row2[toBeIdx]).trim() : '',
@@ -302,13 +309,13 @@ function doGet(e) {
     if (nameCol < 0) nameCol = 2; // C열(제출자) 기준 fallback
     if (deptCol < 0) return jsonResponse({ error: '시트에 Department 또는 제출본부 컬럼이 없습니다.' }, 500);
 
-    var filterDept = (department || '').trim().toLowerCase();
+    var filterDept = normalizeDept(department);
     for (var i = 1; i < data.length; i++) {
       var row = data[i];
       var rowType = typeCol >= 0 && row[typeCol] != null ? String(row[typeCol]).trim() : '사전과제';
       if (typeCol >= 0 && rowType !== '사전과제') continue;
       
-      var rowDept = (deptCol >= 0 && row[deptCol] != null ? String(row[deptCol]).trim() : '').toLowerCase();
+      var rowDept = normalizeDept(deptCol >= 0 ? row[deptCol] : '');
       if (filterDept && rowDept !== filterDept) continue;
 
       // 워크숍 설계 시 사용한 테스트/샘플 데이터는 세션 화면에 노출하지 않도록 필터링
@@ -322,10 +329,11 @@ function doGet(e) {
       // 과제 후보는 Prework 시트 H열 기준을 우선 적용
       var wfRaw = wfCol >= 0 ? row[wfCol] : '';
       var taskRaw = row[7] != null ? row[7] : (taskCol >= 0 ? row[taskCol] : '');
+      var displayDept = deptCol >= 0 && row[deptCol] != null ? String(row[deptCol]).trim() : '';
       result.push({
         rowIndex: i + 1,
         id: row[idCol] || '',
-        department: rowDept,
+        department: displayDept || rowDept,
         participantName: pName,
         participantPosition: positionCol >= 0 && row[positionCol] != null ? String(row[positionCol]) : '',
         selectedStrategyId: row[strategyIdCol] != null ? String(row[strategyIdCol]) : null,

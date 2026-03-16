@@ -17,6 +17,12 @@ function isSampleTitle(title) {
   return false;
 }
 
+// 본부 비교용 정규화 (공백 제거 + 소문자) — 시트 표기 차이 보정
+function normalizeDept(s) {
+  if (s == null || s === '') return '';
+  return String(s).replace(/\s+/g, '').trim().toLowerCase();
+}
+
 function id() {
   return 'id-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
 }
@@ -120,7 +126,8 @@ export default function Home() {
       const res = await fetch(`/api/prework?action=session2&department=${encodeURIComponent(dept)}`);
       const data = await res.json();
       const ideas = Array.isArray(data?.ideas) ? data.ideas : [];
-      setSharedSession2Ideas(ideas.filter((x) => !isSampleTitle(x.title)));
+      // 서버에서 이미 샘플 제거함. 클라이언트에서 다시 필터하면 등록 직후 행이 빠질 수 있으므로 그대로 표시.
+      setSharedSession2Ideas(ideas);
     } catch {
       setSharedSession2Ideas([]);
     }
@@ -162,7 +169,7 @@ export default function Home() {
   // 시트에 반영된 아이디어는 recentlyRegistered에서만 제거(상태 정리). 표시·선정은 시트만 사용.
   useEffect(() => {
     const mine = (sharedSession2Ideas || []).filter(
-      (r) => (r.department || '').trim() === (department || '').trim() && (r.participantName || '').trim() === (participantName || '').trim()
+      (r) => normalizeDept(r.department) === normalizeDept(department) && (r.participantName || '').trim() === (participantName || '').trim()
     );
     setSession2((s) => {
       const recS = s.recentlyRegistered || [];
@@ -449,8 +456,9 @@ export default function Home() {
     .filter((r) => r.iceSelected === true)
     .map((r) => ({ id: `s2row:${r.rowIndex || 0}`, title: r.title, desc: [r.asIs, r.toBe].filter(Boolean).join('\n\n'), source: 'session2_idea' }));
   const selectedDept = (viewSession2Dept || department || '').trim();
+  const selectedDeptNorm = normalizeDept(selectedDept);
   const myIdeasDisplay = (sharedSession2Ideas || []).filter(
-    (r) => (r.department || '').trim() === selectedDept
+    (r) => normalizeDept(r.department) === selectedDeptNorm
   );
   const tasksForIceRaw = [...baseIceTasks, ...selectedIdeasAsTasks].filter((t) => !isSampleTitle(t.title));
   const iceScoreForTask = (t) => iceScore(session1.evaluations?.[t.id]);
