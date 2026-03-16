@@ -119,6 +119,14 @@
     var container = document.getElementById('taskCandidateList');
     if (!container) return;
     var list = state.prework.taskCandidates;
+    if (!list || list.length === 0) {
+      list = [{
+        id: state.prework._placeholderTaskId || (state.prework._placeholderTaskId = id()),
+        title: '',
+        desc: ''
+      }];
+      state.prework.taskCandidates = list;
+    }
     container.innerHTML = list.map(function (t, i) {
       var prioClass = i === 0 ? 'prio-1' : 'prio-n';
       var prioText = '후보 ' + (i + 1);
@@ -183,7 +191,7 @@
   }
 
   function addTaskCandidate() {
-    state.prework.taskCandidates.push({ id: id(), title: '새 과제 후보', desc: '' });
+    state.prework.taskCandidates.push({ id: id(), title: '', desc: '' });
     renderTaskCandidateList();
     renderSession1ICE();
     saveState();
@@ -583,6 +591,11 @@
     document.getElementById('btnSubmitPrework').addEventListener('click', goNextFromPrework);
     var btnBottom = document.getElementById('btnSubmitPreworkBottom');
     if (btnBottom) btnBottom.addEventListener('click', goNextFromPrework);
+    var btnGoTask = document.getElementById('btnGoTaskSection');
+    if (btnGoTask) btnGoTask.addEventListener('click', function () {
+      var el = document.getElementById('taskCandidateList');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
     var btnPreOnly = document.getElementById('btnPreworkOnly');
     if (btnPreOnly) btnPreOnly.addEventListener('click', function () {
       saveState();
