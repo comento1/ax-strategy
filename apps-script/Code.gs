@@ -379,7 +379,8 @@ function doPost(e) {
         def.reason || '',
         def.expectedChange || '',
         def.successCriteria || '',
-        def.implementationNotes || ''
+        def.implementationNotes || '',
+        def.keyMan || ''
       ]);
       return jsonResponse({ ok: true });
     }
@@ -449,9 +450,9 @@ function getSession3Sheet() {
     sheet = ss.insertSheet(SESSION3_SHEET_NAME);
     sheet.appendRow([
       '제출일시', '작성본부', '참가자이름', '과제ID', '과제명',
-      '개선이유', '기대변화', '성공기준', '구현시고려사항'
+      '개선이유', '기대변화', '성공기준', '구현시고려사항', 'Key Man'
     ]);
-    sheet.getRange(1, 1, 1, 9).setFontWeight('bold');
+    sheet.getRange(1, 1, 1, 10).setFontWeight('bold');
   }
   return sheet;
 }

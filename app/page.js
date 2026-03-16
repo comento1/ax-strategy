@@ -193,7 +193,8 @@ export default function Home() {
     const blocks = [];
     let current = null;
     allLines.forEach((line) => {
-      const m = line.trim().match(/^(\d+)\.\s*(.*)/);
+      // "1. 제목" 또는 "과제 1. 제목" 형식 모두 인식
+      const m = line.trim().match(/^(?:과제\s*)?(\d+)\.\s*(.*)/);
       if (m) {
         current = { title: '', desc: '', raw: m[2] };
         blocks.push(current);
@@ -247,6 +248,35 @@ export default function Home() {
     } finally {
       setAiLoading(false);
     }
+  };
+
+  // 과제 도출 텍스트를 AI로 정제해 과제화
+  const refineTaskFromDraft = async (raw) => {
+    try {
+      const res = await fetch('/api/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'task_refine',
+          context: prework.strategyTitle || '',
+          userInput: raw,
+        }),
+      });
+      const data = await res.json();
+      if (data && data.task && (data.task.title || data.task.desc)) {
+        return {
+          title: (data.task.title || '').trim(),
+          desc: (data.task.desc || '').trim(),
+        };
+      }
+    } catch (e) {
+      // 실패 시 아래 기본 분기로 폴백
+    }
+    // 폴백: 첫 줄을 제목, 나머지를 설명으로 사용
+    const lines = raw.split('\n').filter((l) => l.trim());
+    const title = (lines[0] || '').replace(/^[-•]\s*/, '').trim();
+    const desc = lines.slice(1).join('\n').trim();
+    return { title, desc };
   };
 
   const loadWorkflowExample = async () => {
@@ -481,6 +511,23 @@ export default function Home() {
       }
     }
     window.print();
+  };
+
+  const handleSaveDefinitionsOnly = async () => {
+    // 인쇄 없이 과제정의서만 시트에 저장
+    const toSave = finalTasks.filter((t) => {
+      const d = session3.definitions?.[t.id] || {};
+      return d.reason || d.expectedChange || d.successCriteria || d.implementationNotes || d.keyMan;
+    });
+    if (toSave.length === 0) return;
+    setSubmitting(true);
+    try {
+      for (const t of toSave) {
+        await saveSession3ToSheet(t.id, t.title, session3.definitions?.[t.id] || {});
+      }
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   useEffect(() => persist(), [persist]);
@@ -843,18 +890,16 @@ export default function Home() {
                       <button
                         type="button"
                         className="btn btn-primary btn-sm"
-                        onClick={() => {
+                        onClick={async () => {
                           const raw = (taskDraftText || '').trim();
                           if (!raw) return;
-                          const lines = raw.split('\n').filter((l) => l.trim());
-                          if (lines.length === 0) return;
-                          const title = lines[0].replace(/^[-•]\s*/, '').trim();
-                          const desc = lines.slice(1).join('\n').trim();
+                          const refined = await refineTaskFromDraft(raw);
+                          if (!refined || !refined.title) return;
                           setPrework((p) => ({
                             ...p,
                             taskCandidates: [
                               ...(p.taskCandidates || []),
-                              { id: id(), title, desc, level: 'low' },
+                              { id: id(), title: refined.title, desc: refined.desc || '', level: 'low' },
                             ],
                           }));
                           setTaskDraftText('');
@@ -1099,6 +1144,7 @@ export default function Home() {
     { key: 'expectedChange', label: '개선되어야 하는 과업이 AI를 기반으로 어떻게 변화되길 기대하십니까?', type: 'textarea' },
     { key: 'successCriteria', label: '이 문제가 AI를 기반으로 성공적으로 해소/생산성이 향상되었다고 인정 받기 위해, 달성되어야 하거나, 구현된 결과물에 반드시 고려되어야 할 것은 무엇입니까?', type: 'textarea' },
     { key: 'implementationNotes', label: '구현 과정에서 구현자가 반드시 고려해야 할 사항은 무엇입니까?', type: 'textarea' },
+    { key: 'keyMan', label: '본 과제를 구현할 담당자는 누가 적합하겠습니까? (Key Man 설정)', type: 'text' },
   ];
   const wfStepsSorted = (prework.workflowSteps || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0));
   const wfSummary = wfStepsSorted.map((s) => s.title).join(' → ');
@@ -1115,6 +1161,7 @@ export default function Home() {
         <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>{department} · 세션 3</span>
         <div style={{ flex: 1 }} />
         {session3SelectedTaskId && <button type="button" className="btn btn-sm" onClick={() => setSession3SelectedTaskId(null)}>← 목록으로</button>}
+        <button type="button" className="btn btn-sm" disabled={submitting} onClick={handleSaveDefinitionsOnly}>{submitting ? '저장 중…' : '저장하기'}</button>
         <button type="button" className="btn btn-primary" disabled={submitting} onClick={handlePrint}>{submitting ? '저장 중…' : '인쇄 / PDF 저장'}</button>
       </header>
       <main className="app-main" style={{ padding: 20 }}>
