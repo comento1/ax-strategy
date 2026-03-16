@@ -73,6 +73,7 @@ export default function Home() {
   const [preworkStep, setPreworkStep] = useState(1); // 1: 워크플로우, 2: 과제 후보, 3: 질문
   const [workflowExample, setWorkflowExample] = useState(''); // 선택 영역별 예시 (API로 로드)
   const [questionSubmitted, setQuestionSubmitted] = useState(false); // 질문 제출 후 "등록되었습니다" 표시
+  const [detailModalStrategy, setDetailModalStrategy] = useState(null); // 리뷰 단계에서 "더 읽어보기"로 연 상세 모달
 
   useEffect(() => {
     fetch('/api/logo')
@@ -354,38 +355,78 @@ export default function Home() {
     );
   }
 
-  // ----- Strategy review (then prework): 보기 본부 선택, 상세는 시트 전체 필드 표시
-  const strategyDetailFields = ['요약제목', '요약설명', '작성본부', 'AI 적용 기대영역', 'AI 적용 기대이유', '기대하는 변화의 모습', '수행 조직', '구현 간 고려사항'];
+  // ----- Strategy review: 카드 뉴스 가로 배치, 더 읽어보기 → 모달, 다음 단계 버튼 상단 우측
+  const strategyDetailOrder = ['AI 적용 기대영역', 'AI 적용 기대이유', '기대하는 변화의 모습', '요약제목', '요약설명', '수행 조직', '구현 간 고려사항'];
+  const strategyDetailExclude = ['작성본부', '핵심 한 줄 요약', 'id', '_G열'];
   if (phase === 'review') {
     const currentViewDept = viewDepartment || department;
     const listForView = (strategies.strategies || []).filter((s) => (s.작성본부 || '').trim() === currentViewDept);
     const canSelectForPrework = selectedStrategy && (selectedStrategy.작성본부 || '').trim() === (department || '').trim();
+    const goToPrework = (strategy) => {
+      const s = strategy || selectedStrategy;
+      if (!s) return;
+      if ((s.작성본부 || '').trim() !== (department || '').trim()) {
+        alert('본인 본부 과제만 선택할 수 있습니다. 보기 본부를 「' + department + ' (내 본부)」로 바꾼 뒤, 우리 본부 과제에서 「이 전략으로 진행」을 선택해 주세요.');
+        return;
+      }
+      const title = s.요약제목 || s['AI 적용 기대영역'] || s.제목 || '';
+      setPrework((p) => ({ ...p, selectedStrategyId: s.id, strategyTitle: title, strategyFull: s }));
+      setPreworkStep(1);
+      setWorkflowExample('');
+      setDetailModalStrategy(null);
+      setSelectedStrategy(s);
+      setPhase('prework');
+    };
+    const renderDetailCards = (s) => {
+      const ordered = strategyDetailOrder.filter((key) => s[key] != null && String(s[key]).trim() !== '');
+      const rest = Object.keys(s).filter((k) => !strategyDetailOrder.includes(k) && !strategyDetailExclude.includes(k) && s[k] != null && String(s[k]).trim() !== '');
+      return (
+        <>
+          {ordered.map((key) => (
+            <div key={key} className="strategy-detail-card">
+              <span className="strategy-detail-label">{key}</span>
+              <span className="strategy-detail-value">{s[key]}</span>
+            </div>
+          ))}
+          {rest.map((key) => (
+            <div key={key} className="strategy-detail-card">
+              <span className="strategy-detail-label">{key}</span>
+              <span className="strategy-detail-value">{s[key]}</span>
+            </div>
+          ))}
+        </>
+      );
+    };
     return (
       <div className="app-shell">
-        <header className="app-header">
+        <header className="app-header app-header-review">
           <div className="app-header-left">
             {logoUrl && <img src={logoUrl} alt="" className="app-logo" />}
             <span className="app-title">롯데웰푸드 AI 전략 구체화</span>
           </div>
-          <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>{participantName} · {department}</span>
+          <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>{participantName || '참가자'} · {department}</span>
           <div style={{ flex: 1 }} />
           <button type="button" className="btn btn-sm" onClick={() => setPhase('entry')}>본부/이름 변경</button>
+          <button
+            type="button"
+            className="btn btn-primary btn-next-step"
+            disabled={!selectedStrategy}
+            onClick={() => goToPrework()}
+          >
+            선택한 전략으로 사전과제 진행 →
+          </button>
         </header>
-        <main className="app-main" style={{ padding: 20 }}>
+        <main className="app-main review-main" style={{ padding: 20 }}>
           <div className="info-banner">
             <span className="icon">i</span>
             <div>
               <p className="title">임원진이 도출한 AX 전략</p>
-              <p className="body">카드를 <strong>클릭하면 상세 내용</strong>을 볼 수 있습니다. <strong>본인 본부({department})</strong> 과제를 선택한 뒤에만 「선택한 전략으로 사전과제 진행」이 가능합니다.</p>
+              <p className="body">카드에서 <strong>더 읽어보기</strong>로 상세를 보고, <strong>본인 본부({department})</strong> 과제는 「이 전략으로 진행」을 눌러 선택한 뒤 상단 버튼으로 다음 단계로 이동하세요.</p>
             </div>
           </div>
           <div className="view-dept-wrap">
             <label className="view-dept-label">보기 본부</label>
-            <select
-              className="view-dept-select"
-              value={currentViewDept}
-              onChange={(e) => setViewDepartment(e.target.value)}
-            >
+            <select className="view-dept-select" value={currentViewDept} onChange={(e) => setViewDepartment(e.target.value)}>
               <option value={department}>{department} (내 본부)</option>
               {(strategies.departments || []).filter((d) => d !== department).map((d) => (
                 <option key={d} value={d}>{d}</option>
@@ -394,66 +435,51 @@ export default function Home() {
           </div>
           <div className="strategy-dept-block">
             <h3 className="strategy-dept-title">{currentViewDept}</h3>
-            <div className="strategy-list-view">
+            <div className="strategy-card-news">
               {listForView.map((s) => {
-                const cardTitle = (s.요약제목 || s['AI 적용 기대영역'] || s.제목 || '').trim() || '(제목 없음)';
+                const cardTitle = (s.요약제목 || s['AI 적용 기대영역'] || s.제목 || s['핵심 한 줄 요약'] || '').trim() || '(제목 없음)';
                 const cardDesc = (s._G열 || s.요약설명 || s.리스트설명 || s.내용 || '').trim();
+                const isSelected = selectedStrategy?.id === s.id;
+                const isMyDept = (s.작성본부 || '').trim() === (department || '').trim();
                 return (
-                  <div key={s.id} className={`strategy-card strategy-card-full ${selectedStrategy?.id === s.id ? 'sel' : ''}`} onClick={() => setSelectedStrategy(selectedStrategy?.id === s.id ? null : s)}>
-                    <div className="strategy-card-head">
-                      <p className="strategy-card-title">{cardTitle}</p>
-                      {cardDesc && <p className="strategy-card-desc">{cardDesc}</p>}
-                      <p className="strategy-card-hint">클릭 시 상세 보기 · 선택 시 사전과제 진행 가능</p>
+                  <div key={s.id} className={`strategy-card-news-item ${isSelected ? 'sel' : ''}`}>
+                    <div className="card-news-visual" />
+                    <div className="card-news-body">
+                      <p className="card-news-title">{cardTitle}</p>
+                      {cardDesc && <p className="card-news-desc">{cardDesc.slice(0, 80)}{cardDesc.length > 80 ? '…' : ''}</p>}
+                      <button type="button" className="btn btn-card-read" onClick={(e) => { e.stopPropagation(); setDetailModalStrategy(s); }}>더 읽어보기</button>
+                      {isMyDept && (
+                        <button type="button" className="btn btn-card-select" onClick={(e) => { e.stopPropagation(); setSelectedStrategy(isSelected ? null : s); }}>{isSelected ? '✓ 선택됨' : '이 전략으로 진행'}</button>
+                      )}
                     </div>
-                    {(selectedStrategy?.id === s.id) && (
-                      <div className="strategy-card-detail strategy-detail-cards">
-                        {strategyDetailFields.filter((key) => key !== 'AI 적용 기대이유' && s[key] != null && String(s[key]).trim() !== '').map((key) => (
-                          <div key={key} className="strategy-detail-card">
-                            <span className="strategy-detail-label">{key}</span>
-                            <span className="strategy-detail-value">{s[key]}</span>
-                          </div>
-                        ))}
-                        {s['AI 적용 기대이유'] != null && String(s['AI 적용 기대이유']).trim() !== '' && (
-                          <div className="strategy-detail-card">
-                            <span className="strategy-detail-label">AI 적용 기대이유</span>
-                            <span className="strategy-detail-value">{s['AI 적용 기대이유']}</span>
-                          </div>
-                        )}
-                        {Object.keys(s).filter((k) => !strategyDetailFields.includes(k) && k !== 'id' && k !== '_G열' && s[k] != null && String(s[k]).trim() !== '').map((key) => (
-                          <div key={key} className="strategy-detail-card">
-                            <span className="strategy-detail-label">{key}</span>
-                            <span className="strategy-detail-value">{s[key]}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 );
               })}
             </div>
             {listForView.length === 0 && <p className="section-sub">해당 본부에 등록된 전략이 없습니다.</p>}
           </div>
-          <div className="review-actions">
-            <button
-              className="btn btn-primary"
-              disabled={!selectedStrategy}
-              onClick={() => {
-                if (!selectedStrategy) return;
-                if (!canSelectForPrework) {
-                  alert('본인 본부 과제만 선택할 수 있습니다. 보기 본부를 「' + department + ' (내 본부)」로 바꾼 뒤, 우리 본부 과제를 클릭해 선택해 주세요.');
-                  return;
-                }
-                const title = selectedStrategy.요약제목 || selectedStrategy['AI 적용 기대영역'] || selectedStrategy.제목 || '';
-                setPrework((p) => ({ ...p, selectedStrategyId: selectedStrategy.id, strategyTitle: title, strategyFull: selectedStrategy }));
-                setPreworkStep(1);
-                setWorkflowExample('');
-                setPhase('prework');
-              }}
-            >
-              선택한 전략으로 사전과제 진행 →
-            </button>
-          </div>
         </main>
+        {detailModalStrategy && (
+          <div className="modal-overlay" onClick={() => setDetailModalStrategy(null)}>
+            <div className="modal-content strategy-detail-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h3 className="modal-title">{detailModalStrategy.요약제목 || detailModalStrategy['AI 적용 기대영역'] || detailModalStrategy.제목 || '(제목 없음)'}</h3>
+                <button type="button" className="modal-close" onClick={() => setDetailModalStrategy(null)} aria-label="닫기">×</button>
+              </div>
+              <div className="modal-body strategy-detail-cards">
+                {renderDetailCards(detailModalStrategy)}
+              </div>
+              <div className="modal-footer">
+                {(detailModalStrategy.작성본부 || '').trim() === (department || '').trim() ? (
+                  <button type="button" className="btn btn-primary" onClick={() => goToPrework(detailModalStrategy)}>이 전략으로 사전과제 진행 →</button>
+                ) : (
+                  <p className="modal-footer-note">본인 본부 과제만 사전과제로 선택할 수 있습니다.</p>
+                )}
+                <button type="button" className="btn btn-sm" onClick={() => setDetailModalStrategy(null)}>닫기</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -545,8 +571,16 @@ export default function Home() {
                         <input className="wf-input-title" placeholder="단계 제목" value={s.title || ''} onChange={(e) => updateWf(s.id, 'title', e.target.value)} />
                         <input className="wf-input-desc" placeholder="설명" value={s.desc || ''} onChange={(e) => updateWf(s.id, 'desc', e.target.value)} />
                       </div>
-                      <span className={`tag ${s.aiTag === 'review' ? 'tag-review' : 'tag-ai'}`}>{s.aiTag === 'review' ? '검토 필요' : 'AI 적용 가능'}</span>
-                      <button type="button" className="btn btn-sm" onClick={() => toggleWfTag(s.id)}>태그</button>
+                      <div className="wf-tag-choice">
+                        <button type="button" className={`wf-tag-opt wf-tag-ai ${s.aiTag === 'ai' ? 'active' : ''}`} onClick={() => updateWf(s.id, 'aiTag', 'ai')} title="AI 적용 영역">
+                          <span className="wf-tag-icon" aria-hidden>◇</span>
+                          <span>AI 적용 영역</span>
+                        </button>
+                        <button type="button" className={`wf-tag-opt wf-tag-human ${s.aiTag === 'review' ? 'active' : ''}`} onClick={() => updateWf(s.id, 'aiTag', 'review')} title="사람이 할 것">
+                          <span className="wf-tag-icon" aria-hidden>○</span>
+                          <span>사람이 할 것</span>
+                        </button>
+                      </div>
                       <button type="button" className="btn btn-sm" onClick={() => delWf(s.id)}>삭제</button>
                     </div>
                   ))}

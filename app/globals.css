@@ -85,6 +85,79 @@
 .btn-task-low { border-color: var(--color-border-tertiary); color: var(--color-text-secondary); }
 .btn-task-low:hover { background: var(--color-background-secondary); }
 
+/* 리뷰: 카드 뉴스 가로 배치 */
+.app-header-review { flex-wrap: wrap; gap: 8px; }
+.btn-next-step { margin-left: auto; white-space: nowrap; }
+.strategy-card-news {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+.strategy-card-news-item {
+  background: var(--color-background-primary);
+  border: 1px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-md);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.strategy-card-news-item:hover { border-color: var(--color-border-tertiary); box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.strategy-card-news-item.sel { border-color: var(--color-text-info); box-shadow: 0 0 0 2px var(--color-background-info); }
+.card-news-visual {
+  height: 100px;
+  background: linear-gradient(135deg, var(--color-background-info) 0%, #bae6fd 100%);
+  flex-shrink: 0;
+}
+.card-news-body { padding: 14px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+.card-news-title { font-size: 14px; font-weight: 600; margin: 0; line-height: 1.35; color: var(--color-text-primary); }
+.card-news-desc { font-size: 12px; color: var(--color-text-secondary); margin: 0; line-height: 1.45; }
+.btn-card-read {
+  padding: 8px 14px; font-size: 12px; border-radius: var(--border-radius-md);
+  border: 1px solid var(--color-border-secondary); background: var(--color-background-primary);
+  color: var(--color-text-primary); cursor: pointer; align-self: flex-start;
+}
+.btn-card-read:hover { background: var(--color-background-secondary); }
+.btn-card-select {
+  padding: 6px 12px; font-size: 11px; border-radius: 6px;
+  border: 1px solid var(--color-text-info); background: var(--color-background-info);
+  color: var(--color-text-info); cursor: pointer; font-weight: 500;
+}
+.btn-card-select:hover { filter: brightness(0.98); }
+
+/* 모달 */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center;
+  z-index: 1000; padding: 20px;
+}
+.modal-content {
+  background: var(--color-background-primary); border-radius: var(--border-radius-lg);
+  max-width: 560px; width: 100%; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+}
+.strategy-detail-modal .modal-body { overflow-y: auto; padding: 16px 20px; }
+.modal-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--color-border-primary); }
+.modal-title { font-size: 16px; font-weight: 600; margin: 0; line-height: 1.4; }
+.modal-close { font-size: 24px; line-height: 1; color: var(--color-text-tertiary); background: none; border: none; cursor: pointer; padding: 0 4px; }
+.modal-close:hover { color: var(--color-text-primary); }
+.modal-footer { display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-top: 1px solid var(--color-border-primary); flex-wrap: wrap; }
+.modal-footer-note { font-size: 12px; color: var(--color-text-tertiary); margin: 0; }
+
+/* 워크플로우: AI 적용 영역 / 사람이 할 것 선택 */
+.wf-tag-choice { display: flex; gap: 6px; flex-shrink: 0; align-items: center; }
+.wf-tag-opt {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; font-size: 11px;
+  border-radius: 6px; border: 1px solid var(--color-border-secondary); background: var(--color-background-primary);
+  color: var(--color-text-secondary); cursor: pointer; transition: border-color 0.2s, background 0.2s;
+}
+.wf-tag-opt:hover { border-color: var(--color-border-tertiary); background: var(--color-background-secondary); }
+.wf-tag-opt.active { font-weight: 600; }
+.wf-tag-opt.wf-tag-ai.active { border-color: var(--color-text-info); background: var(--color-background-info); color: var(--color-text-info); }
+.wf-tag-opt.wf-tag-human.active { border-color: var(--color-text-tertiary); background: var(--color-background-secondary); color: var(--color-text-primary); }
+.wf-tag-icon { font-size: 12px; opacity: 0.9; }
+.wf-tag-ai .wf-tag-icon { color: var(--color-text-info); }
+.wf-tag-human .wf-tag-icon { color: var(--color-text-tertiary); }
+
 /* 워크플로우 가이드 */
 .wf-guide-text { font-size: 12px; color: var(--color-text-secondary); margin: 0 0 12px; line-height: 1.5; }
 .ai-box-workflow { margin-bottom: 16px; }
