@@ -162,24 +162,31 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
 .btn-example-primary {
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: center;
+  gap: 12px;
   width: 100%;
-  margin: 10px 0 14px;
-  padding: 16px 22px;
-  font-size: 15px;
-  font-weight: 700;
-  background: linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%);
+  margin: 8px 0 16px;
+  padding: 18px 24px;
+  font-size: 16px;
+  font-weight: 800;
+  background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
   color: #fff;
   border: none;
   border-radius: var(--border-radius-lg);
   cursor: pointer;
-  transition: opacity 0.15s, transform 0.1s;
-  box-shadow: 0 4px 14px rgba(3,105,161,0.25);
-  letter-spacing: 0.01em;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 20px rgba(3, 105, 161, 0.3);
+  letter-spacing: -0.01em;
+  position: relative;
+  overflow: hidden;
 }
-.btn-example-primary:hover { opacity: 0.92; transform: translateY(-1px); box-shadow: 0 6px 18px rgba(3,105,161,0.3); }
+.btn-example-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(3, 105, 161, 0.4);
+  background: linear-gradient(135deg, #38bdf8 0%, #0ea5e9 100%);
+}
 .btn-example-primary:active { transform: translateY(0); }
-.btn-example-icon { font-size: 20px; flex-shrink: 0; }
+.btn-example-icon { font-size: 22px; flex-shrink: 0; }
 
 /* ─── 워크플로우 카드 ─── */
 .wf-card {
@@ -225,22 +232,22 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
 .wf-card .wf-input-desc {
   display: block;
   width: 100%;
-  font-size: 12px;
-  color: var(--color-text-secondary);
-  padding: 10px 12px;
-  border-radius: 6px;
-  border: 1px solid var(--color-border-secondary);
-  background: var(--color-background-secondary);
-  min-height: 110px;
+  font-size: 13px;
+  color: var(--color-text-primary);
+  padding: 14px 16px;
+  border-radius: 8px;
+  border: 1.5px solid var(--color-border-secondary);
+  background: #fdfdfd;
+  min-height: 140px;
   resize: vertical;
-  line-height: 1.7;
-  transition: border-color 0.12s, background 0.12s;
+  line-height: 1.8;
+  transition: all 0.2s ease;
 }
 .wf-card .wf-input-desc:focus {
-  border-color: var(--color-text-info);
+  border-color: #0ea5e9;
   background: #fff;
   outline: none;
-  box-shadow: 0 0 0 3px rgba(3,105,161,0.08);
+  box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.1);
 }
 .tag {
   font-size: 11px;
@@ -267,23 +274,28 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
 .btn-ai-suggest {
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: center;
+  gap: 12px;
   width: 100%;
-  padding: 16px 22px;
-  margin-bottom: 16px;
-  font-size: 15px;
-  font-weight: 700;
-  background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
+  padding: 18px 24px;
+  margin-bottom: 20px;
+  font-size: 16px;
+  font-weight: 800;
+  background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
   color: #fff;
   border: none;
   border-radius: var(--border-radius-lg);
   cursor: pointer;
-  transition: opacity 0.15s, transform 0.1s;
-  box-shadow: 0 4px 14px rgba(79,70,229,0.25);
-  letter-spacing: 0.01em;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.3);
+  letter-spacing: -0.01em;
   position: relative;
 }
-.btn-ai-suggest:hover { opacity: 0.91; transform: translateY(-1px); box-shadow: 0 6px 18px rgba(79,70,229,0.32); }
+.btn-ai-suggest:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 30px rgba(99, 102, 241, 0.4);
+  background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%);
+}
 .btn-ai-suggest:active { transform: translateY(0); }
 .ai-suggest-icon { font-size: 20px; flex-shrink: 0; }
 .ai-suggest-badge {
@@ -412,16 +424,24 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
 .section-title { font-size: 15px; font-weight: 700; margin: 0 0 4px; }
 .section-title.major-step { font-size: 16px; color: var(--color-text-primary); }
 .section-sub { font-size: 12px; color: var(--color-text-secondary); margin: 0 0 12px; line-height: 1.6; }
-.section-block { margin-bottom: 28px; }
-.section-block h3 { font-size: 14px; font-weight: 700; margin: 0 0 10px; }
+.section-block { margin-bottom: 20px; }
+.section-block h3 { font-size: 15px; font-weight: 700; margin: 0 0 12px; color: var(--color-text-primary); }
 
 /* ICE 테이블 */
-.ice-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-.ice-table th, .ice-table td { padding: 9px 10px; text-align: left; border-bottom: 1px solid var(--color-border-primary); }
-.ice-table th { font-weight: 600; color: var(--color-text-secondary); background: var(--color-background-secondary); }
+.ice-table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+.ice-table th, .ice-table td { padding: 12px 10px; text-align: left; border-bottom: 1px solid var(--color-border-primary); vertical-align: middle; }
+.ice-table th { font-weight: 700; color: var(--color-text-secondary); background: var(--color-background-secondary); white-space: nowrap; }
+/* 열 너비 조정 */
+.ice-table th:nth-child(1), .ice-table td:nth-child(1) { width: 30%; } /* 과제 후보 */
+.ice-table th:nth-child(2), .ice-table td:nth-child(2) { width: 16%; } /* 전략 부합도 */
+.ice-table th:nth-child(3), .ice-table td:nth-child(3) { width: 16%; } /* 구현 가능성 */
+.ice-table th:nth-child(4), .ice-table td:nth-child(4) { width: 16%; } /* 데이터 확보성 */
+.ice-table th:nth-child(5), .ice-table td:nth-child(5) { width: 12%; } /* ICE 점수 */
+.ice-table th:nth-child(6), .ice-table td:nth-child(6) { width: 10%; } /* 확정 */
+
 .ice-table tr:hover td { background: #f0f9ff; }
-.ice-table input[type="number"] { width: 52px; padding: 4px 6px; border: 1px solid var(--color-border-secondary); border-radius: 4px; }
-.ice-table .ice-score { font-weight: 700; color: var(--color-text-info); }
+.ice-table input[type="number"] { width: 64px; padding: 6px 8px; border: 1.5px solid var(--color-border-secondary); border-radius: 6px; text-align: center; }
+.ice-table .ice-score { font-weight: 800; color: #6366f1; font-size: 15px; }
 
 /* 세션2 트랙 */
 .track-tabs { display: flex; gap: 8px; margin-bottom: 16px; }

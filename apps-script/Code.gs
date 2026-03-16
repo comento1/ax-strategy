@@ -21,7 +21,7 @@ function getSheet() {
     sheet = ss.insertSheet(SHEET_NAME);
     // 제목행(첫 번째 행): 제출유형 포함
     sheet.appendRow([
-      '제출유형', 'Id', 'Department', 'ParticipantName', 'ParticipantPosition', 'SelectedStrategyId', 'StrategyTitle',
+      '제출유형', 'Department', 'Id', 'ParticipantName', 'ParticipantPosition', 'SelectedStrategyId', 'StrategyTitle',
       'WorkflowSteps', 'TaskCandidates', 'Questions', 'CreatedAt'
     ]);
     sheet.getRange(1, 1, 1, 11).setFontWeight('bold');
@@ -165,13 +165,15 @@ function doGet(e) {
     var createdCol = headers.indexOf('CreatedAt');
     if (deptCol < 0) return jsonResponse({ error: '시트 컬럼이 올바르지 않습니다.' }, 500);
 
-    var filterDept = department || 'default';
+    var filterDept = (department || '').toLowerCase();
     for (var i = 1; i < data.length; i++) {
       var row = data[i];
       var rowType = typeCol >= 0 && row[typeCol] != null ? String(row[typeCol]).trim() : '사전과제';
       if (typeCol >= 0 && rowType !== '사전과제') continue;
+      
       var rowDept = row[deptCol] ? String(row[deptCol]).trim() : '';
-      if (rowDept !== filterDept) continue;
+      // filterDept가 있으면 필터링, 없으면 전체 조회 (단, 샘플 제외)
+      if (filterDept && rowDept.toLowerCase() !== filterDept) continue;
 
       // 워크숍 설계 시 사용한 테스트/샘플 데이터는 세션 화면에 노출하지 않도록 필터링
       // 예: "[ZERO 브랜드 라인업 확대 및 헬스&웰니스 카테고리 강화]", "테스트", "테스트 2"
@@ -283,13 +285,13 @@ function doPost(e) {
     var hasTypeCol = headers.indexOf('제출유형') >= 0;
     if (hasTypeCol) {
       sheet.appendRow([
-        '사전과제', id, department, participantName, participantPosition,
+        '사전과제', department, id, participantName, participantPosition,
         selectedStrategyId, strategyTitle, workflowStepsToText(workflowSteps),
         taskCandidatesToText(taskCandidates), questionsToText(questions), createdAt
       ]);
     } else {
       sheet.appendRow([
-        id, department, participantName, participantPosition,
+        department, id, participantName, participantPosition,
         selectedStrategyId, strategyTitle, workflowStepsToText(workflowSteps),
         taskCandidatesToText(taskCandidates), questionsToText(questions), createdAt
       ]);

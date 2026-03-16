@@ -23,9 +23,14 @@
     session3: { definitions: {} }
   };
 
+  function getStorageKey() {
+    return STORAGE_KEY + (currentDepartment ? '_' + currentDepartment : '');
+  }
+
   function loadState() {
     try {
-      var raw = localStorage.getItem(STORAGE_KEY);
+      var key = getStorageKey();
+      var raw = localStorage.getItem(key);
       if (raw) {
         var parsed = JSON.parse(raw);
         if (parsed.prework) state.prework = Object.assign({}, state.prework, parsed.prework);
@@ -39,7 +44,8 @@
 
   function saveState() {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      var key = getStorageKey();
+      localStorage.setItem(key, JSON.stringify({
         currentPhase: state.currentPhase,
         prework: state.prework,
         session1: state.session1,
@@ -125,10 +131,10 @@
     var container = document.getElementById('taskCandidateList');
     if (!container) return;
     var list = state.prework.taskCandidates;
-    // 빈 항목이 없으면 기본 1개 생성
+    // 빈 항목이 없거나 모두 비어있으면 기본 1개 보장
     if (!list || list.length === 0) {
       list = [{
-        id: state.prework._placeholderTaskId || (state.prework._placeholderTaskId = id()),
+        id: id(),
         title: '',
         desc: ''
       }];
@@ -136,10 +142,10 @@
     }
     container.innerHTML = list.map(function (t, i) {
       var prioClass = i === 0 ? 'prio-1' : 'prio-n';
-      var prioText = '후보 ' + (i + 1);
+      var prioText = '과제 ' + (i + 1);
       return '<div class="task-card" data-task-id="' + t.id + '">' +
         '<div class="task-dot"></div><div style="flex:1">' +
-        '<input type="text" class="task-input-title" placeholder="과제 제목" value="' + escapeHtml(t.title || '') + '" data-id="' + t.id + '" data-field="title"/>' +
+        '<input type="text" class="task-input-title" placeholder="과제 후보 명칭" value="' + escapeHtml(t.title || '') + '" data-id="' + t.id + '" data-field="title"/>' +
         '<textarea class="task-input-desc" placeholder="과제 설명: 어떤 문제를, AI로 어떻게 해결하는지 간략히 적어주세요." data-id="' + t.id + '" data-field="desc">' + escapeHtml(t.desc || '') + '</textarea>' +
         '</div>' +
         '<div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">' +
@@ -181,7 +187,8 @@
     if (!el) return;
     el.style.height = 'auto';
     var h = el.scrollHeight;
-    if (!h || h < 80) h = 80;
+    var minH = el.classList.contains('wf-input-desc') ? 140 : 80;
+    if (!h || h < minH) h = minH;
     el.style.height = h + 'px';
   }
 
@@ -373,8 +380,9 @@
       toggler.classList.toggle('open', !open);
     });
 
-    targetEl.insertBefore(toggler, targetEl.firstChild);
-    targetEl.insertBefore(panel, targetEl.children[1]);
+    targetEl.innerHTML = '';
+    targetEl.appendChild(toggler);
+    targetEl.appendChild(panel);
   }
 
   function renderDepartmentPreworkList(list) {
@@ -689,10 +697,16 @@
       renderSharedWorkflowSummary();
       loadDepartmentPreworkList();
       renderSession1ICE();
-      // 워크플로우 참조 패널 초기화
-      var taskSection = document.getElementById('taskCandidateSection');
-      if (taskSection && !taskSection.querySelector('.wf-reference-toggle')) {
-        buildWfReferenceToggle(taskSection);
+      // 워크플로우 참조 패널 초기화 (세션1)
+      var wfRefContainerS1 = document.getElementById('sharedWorkflowSummary');
+      if (wfRefContainerS1 && !wfRefContainerS1.querySelector('.wf-reference-toggle')) {
+        // 이미 렌더링된 요약이 있을 수 있으므로 앞부분에 추가하거나 별도 컨테이너 사용
+      }
+      
+      // 사전과제 단계 내에서도 "과제 후보 목록" 상단에 표시
+      var preworkWfRefContainer = document.getElementById('wfReferenceContainer');
+      if (preworkWfRefContainer && !preworkWfRefContainer.querySelector('.wf-reference-toggle')) {
+        buildWfReferenceToggle(preworkWfRefContainer);
       }
     }
     if (phase === 'session2') { renderSession2(); }
@@ -709,6 +723,9 @@
     currentDepartment = params.get('department') || '';
     currentParticipantName = params.get('name') || '';
     currentParticipantPosition = params.get('position') || '';
+
+    // Load state AFTER currentDepartment is set to ensure we use the correct storage key
+    loadState();
     var labelEl = document.getElementById('workshopGroupLabel');
     if (labelEl && (workshop || group || currentDepartment)) {
       var parts = [];
@@ -725,6 +742,12 @@
     renderQuestionList();
     enhanceAutoResizeTextareas(document);
     initWfExampleToggle();
+    
+    // 사전과제 단계 내에서도 "과제 후보 목록" 상단에 "작성한 워크플로우" 표시
+    var preworkWfRefContainer = document.getElementById('wfReferenceContainer');
+    if (preworkWfRefContainer && !preworkWfRefContainer.querySelector('.wf-reference-toggle')) {
+      buildWfReferenceToggle(preworkWfRefContainer);
+    }
 
     // 과제 후보 섹션에 워크플로우 참조 패널 삽입 (사전과제 단계용)
     // — 세션1 전환 시 buildWfReferenceToggle 호출됨
@@ -762,6 +785,13 @@
     // 다음: 과제 후보 목록 → (하단 버튼)
     var btnGoTaskBottom = document.getElementById('btnGoTaskSectionBottom');
     if (btnGoTaskBottom) btnGoTaskBottom.addEventListener('click', function () {
+      var el = document.getElementById('taskCandidateSection');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+
+    // 1-2단계 하단 -> 과제 후보 목록 이동
+    var btnGoFromWf = document.getElementById('btnGoFromWfToTask');
+    if (btnGoFromWf) btnGoFromWf.addEventListener('click', function () {
       var el = document.getElementById('taskCandidateSection');
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
