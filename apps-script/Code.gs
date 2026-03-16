@@ -257,15 +257,15 @@ function doGet(e) {
 
     var headers = data[0];
     var typeCol = headers.indexOf('제출유형');
-    var idCol = headers.indexOf('Id');
     var deptCol = headers.indexOf('Department');
+    var idCol = headers.indexOf('Id');
     var nameCol = headers.indexOf('ParticipantName');
     var positionCol = headers.indexOf('ParticipantPosition');
     var strategyIdCol = headers.indexOf('SelectedStrategyId');
     var titleCol = headers.indexOf('StrategyTitle');
     var wfCol = headers.indexOf('WorkflowSteps');
     var taskCol = headers.indexOf('TaskCandidates');
-    var qCol = headers.indexOf('Questions');
+    // 기존 Questions 컬럼은 더 이상 사용하지 않지만, 시트 호환을 위해 인덱스만 유지
     var createdCol = headers.indexOf('CreatedAt');
     if (deptCol < 0) return jsonResponse({ error: '시트 컬럼이 올바르지 않습니다.' }, 500);
 
@@ -289,10 +289,6 @@ function doGet(e) {
         titleVal === '테스트 2';
       if (isSample) continue;
 
-      var wf = textToWorkflowSteps(row[wfCol]);
-      var tasks = textToTaskCandidates(row[taskCol]);
-      var questions = textToQuestions(row[qCol]);
-
       result.push({
         id: row[idCol] || '',
         department: rowDept,
@@ -300,9 +296,10 @@ function doGet(e) {
         participantPosition: positionCol >= 0 && row[positionCol] != null ? String(row[positionCol]) : '',
         selectedStrategyId: row[strategyIdCol] != null ? String(row[strategyIdCol]) : null,
         strategyTitle: row[titleCol] != null ? String(row[titleCol]) : null,
-        workflowSteps: wf,
-        taskCandidates: tasks,
-        questions: questions,
+        workflowSteps: textToWorkflowSteps(row[wfCol]),
+        taskCandidates: textToTaskCandidates(row[taskCol]),
+        // 질문은 별도 Questions 시트에서만 관리하고, Prework 목록에서는 노출하지 않음
+        questions: [],
         createdAt: row[createdCol] != null ? String(row[createdCol]) : ''
       });
     }
@@ -383,7 +380,6 @@ function doPost(e) {
     var strategyTitle = data.strategyTitle != null ? String(data.strategyTitle) : '';
     var workflowSteps = Array.isArray(data.workflowSteps) ? data.workflowSteps : [];
     var taskCandidates = Array.isArray(data.taskCandidates) ? data.taskCandidates : [];
-    var questions = Array.isArray(data.questions) ? data.questions : [];
 
     var id = 'pw-' + new Date().getTime() + '-' + Math.random().toString(36).substr(2, 9);
     var createdAt = new Date().toISOString();
@@ -395,13 +391,15 @@ function doPost(e) {
       sheet.appendRow([
         '사전과제', department, id, participantName, participantPosition,
         selectedStrategyId, strategyTitle, workflowStepsToText(workflowSteps),
-        taskCandidatesToText(taskCandidates), questionsToText(questions), createdAt
+        taskCandidatesToText(taskCandidates),
+        // 질문은 별도 Questions 시트에만 저장하고, Prework 시트에는 더 이상 기록하지 않음
+        '', createdAt
       ]);
     } else {
       sheet.appendRow([
         department, id, participantName, participantPosition,
         selectedStrategyId, strategyTitle, workflowStepsToText(workflowSteps),
-        taskCandidatesToText(taskCandidates), questionsToText(questions), createdAt
+        taskCandidatesToText(taskCandidates), '', createdAt
       ]);
     }
 
