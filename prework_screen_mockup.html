@@ -1,0 +1,218 @@
+<style>
+* { box-sizing: border-box; }
+.phase-pill { padding: 5px 14px; border-radius: 20px; font-size: 12px; font-weight: 500; white-space: nowrap; }
+.ph-active { background: var(--color-background-info); color: var(--color-text-info); }
+.ph-upcoming { border: 0.5px solid var(--color-border-secondary); color: var(--color-text-tertiary); font-size: 11px; }
+.ph-sep { width: 18px; height: 1px; background: var(--color-border-secondary); flex-shrink: 0; }
+.domain-row { display: flex; align-items: flex-start; gap: 10px; padding: 9px 10px; border-radius: 8px; cursor: pointer; margin-bottom: 4px; }
+.domain-row:hover:not(.sel) { background: var(--color-background-primary); }
+.domain-row.sel { background: var(--color-background-info); }
+.radio-dot { width: 15px; height: 15px; border-radius: 50%; border: 1.5px solid var(--color-border-secondary); flex-shrink: 0; margin-top: 3px; }
+.radio-dot.on { background: var(--color-text-info); border-color: var(--color-text-info); display: flex; align-items: center; justify-content: center; }
+.wf-card { display: flex; gap: 10px; align-items: flex-start; padding: 9px 12px; background: var(--color-background-secondary); border: 0.5px solid var(--color-border-tertiary); border-radius: 8px; margin-bottom: 6px; }
+.wf-card:hover { border-color: var(--color-border-secondary); }
+.step-n { width: 22px; height: 22px; background: var(--color-background-info); color: var(--color-text-info); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 500; flex-shrink: 0; margin-top: 1px; }
+.ai-tag { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: var(--color-background-success); color: var(--color-text-success); white-space: nowrap; flex-shrink: 0; }
+.neutral-tag { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: var(--color-background-secondary); color: var(--color-text-tertiary); white-space: nowrap; flex-shrink: 0; border: 0.5px solid var(--color-border-tertiary); }
+.task-card { display: flex; gap: 10px; align-items: flex-start; padding: 9px 12px; background: var(--color-background-secondary); border: 0.5px solid var(--color-border-tertiary); border-radius: 8px; margin-bottom: 6px; }
+.task-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-text-success); margin-top: 5px; flex-shrink: 0; }
+.prio-1 { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: var(--color-background-warning); color: var(--color-text-warning); white-space: nowrap; flex-shrink: 0; }
+.guide-row { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 9px; }
+.guide-n { width: 18px; height: 18px; border-radius: 50%; background: var(--color-background-info); color: var(--color-text-info); font-size: 10px; font-weight: 500; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; }
+.section-label { font-size: 11px; font-weight: 500; color: var(--color-text-tertiary); letter-spacing: 0.06em; margin: 0 0 10px; }
+.add-row { border: 1px dashed var(--color-border-secondary); border-radius: 8px; padding: 8px 12px; text-align: center; color: var(--color-text-tertiary); font-size: 12px; cursor: pointer; margin-top: 2px; }
+.add-row:hover { background: var(--color-background-secondary); color: var(--color-text-secondary); }
+.info-banner { background: var(--color-background-info); border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; display: flex; gap: 10px; align-items: flex-start; }
+</style>
+
+<div style="background: var(--color-background-primary); border-radius: var(--border-radius-lg); border: 0.5px solid var(--color-border-tertiary); overflow: hidden; font-size: 13px;">
+
+  <div style="display: flex; align-items: center; gap: 6px; padding: 12px 20px; border-bottom: 0.5px solid var(--color-border-tertiary); background: var(--color-background-secondary); flex-wrap: wrap;">
+    <span style="font-size: 13px; font-weight: 500; color: var(--color-text-primary); margin-right: 8px;">롯데웰푸드 AI 전환 과제 설계</span>
+    <div style="flex: 1;"></div>
+    <span class="phase-pill ph-active">사전과제</span>
+    <div class="ph-sep"></div>
+    <span class="phase-pill ph-upcoming">세션 1</span>
+    <div class="ph-sep"></div>
+    <span class="phase-pill ph-upcoming">세션 2 (선택)</span>
+    <div class="ph-sep"></div>
+    <span class="phase-pill ph-upcoming">세션 3</span>
+  </div>
+
+  <div style="display: grid; grid-template-columns: 196px 1fr; min-height: 560px;">
+
+    <div style="border-right: 0.5px solid var(--color-border-tertiary); padding: 16px; background: var(--color-background-secondary); overflow-y: auto;">
+      <p class="section-label">임원 AI 활용 영역</p>
+
+      <div class="domain-row sel">
+        <div class="radio-dot on"><div style="width:5px;height:5px;background:white;border-radius:50%;"></div></div>
+        <div>
+          <p style="font-size: 12px; font-weight: 500; color: var(--color-text-info); margin: 0 0 2px;">영업·마케팅</p>
+          <p style="font-size: 11px; color: var(--color-text-info); opacity: 0.8; margin: 0;">AI 기반 고객 분석 및 캠페인</p>
+        </div>
+      </div>
+      <div class="domain-row">
+        <div class="radio-dot"></div>
+        <div>
+          <p style="font-size: 12px; font-weight: 500; color: var(--color-text-primary); margin: 0 0 2px;">제품 개발·품질관리</p>
+          <p style="font-size: 11px; color: var(--color-text-secondary); margin: 0;">품질 검사 자동화</p>
+        </div>
+      </div>
+      <div class="domain-row">
+        <div class="radio-dot"></div>
+        <div>
+          <p style="font-size: 12px; font-weight: 500; color: var(--color-text-primary); margin: 0 0 2px;">공급망·물류 최적화</p>
+          <p style="font-size: 11px; color: var(--color-text-secondary); margin: 0;">수요예측 및 재고 관리</p>
+        </div>
+      </div>
+      <div class="domain-row">
+        <div class="radio-dot"></div>
+        <div>
+          <p style="font-size: 12px; font-weight: 500; color: var(--color-text-primary); margin: 0 0 2px;">고객 서비스 고도화</p>
+          <p style="font-size: 11px; color: var(--color-text-secondary); margin: 0;">챗봇 및 CS 자동 응대</p>
+        </div>
+      </div>
+
+      <div style="margin-top: 16px; padding-top: 14px; border-top: 0.5px solid var(--color-border-tertiary);">
+        <p class="section-label">수행 가이드</p>
+        <div class="guide-row">
+          <div class="guide-n">1</div>
+          <p style="font-size: 11px; color: var(--color-text-secondary); margin: 0; line-height: 1.6;">임원이 정의한 영역 중 <strong style="font-weight:500;color:var(--color-text-primary);">1개를 선택</strong>하세요</p>
+        </div>
+        <div class="guide-row">
+          <div class="guide-n">2</div>
+          <p style="font-size: 11px; color: var(--color-text-secondary); margin: 0; line-height: 1.6;">해당 영역의 <strong style="font-weight:500;color:var(--color-text-primary);">업무 단계</strong>를 순서대로 입력하세요</p>
+        </div>
+        <div class="guide-row">
+          <div class="guide-n">3</div>
+          <p style="font-size: 11px; color: var(--color-text-secondary); margin: 0; line-height: 1.6;">각 단계에서 <strong style="font-weight:500;color:var(--color-text-primary);">AI 적용 가능 과제</strong>를 도출하세요</p>
+        </div>
+        <div class="guide-row" style="margin-bottom:0;">
+          <div class="guide-n">4</div>
+          <p style="font-size: 11px; color: var(--color-text-secondary); margin: 0; line-height: 1.6;">강사에게 <strong style="font-weight:500;color:var(--color-text-primary);">질문사항</strong>을 미리 등록하세요</p>
+        </div>
+      </div>
+    </div>
+
+    <div style="padding: 20px; overflow-y: auto;">
+
+      <div class="info-banner">
+        <div style="width:18px;height:18px;border-radius:50%;background:var(--color-text-info);color:white;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;flex-shrink:0;margin-top:1px;">i</div>
+        <div>
+          <p style="font-size: 12px; font-weight: 500; color: var(--color-text-info); margin: 0 0 2px;">이 과제를 수행하는 목적</p>
+          <p style="font-size: 11px; color: var(--color-text-info); margin: 0; line-height: 1.6;">임원이 설정한 AI 활용 영역을 <strong style="font-weight:500;">팀의 실제 일하는 방식(워크플로우)</strong>에 기반해 실행 가능한 과제로 전환하는 것입니다. 본 세션에서 팀장으로서의 관점을 과제에 더하는 논의를 하게 됩니다.</p>
+        </div>
+      </div>
+
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+        <div>
+          <p style="font-size: 14px; font-weight: 500; color: var(--color-text-primary); margin: 0 0 2px;">워크플로우 분석</p>
+          <p style="font-size: 11px; color: var(--color-text-secondary); margin: 0;">영업·마케팅 영역 — 현재 우리 팀의 실제 업무 흐름을 단계별로 입력하세요</p>
+        </div>
+        <button onclick="sendPrompt('현실성 검토 평가 매트릭스에 대해 설명해주세요')" style="font-size:11px; padding:5px 12px; white-space:nowrap;">단계 추가 ↗</button>
+      </div>
+
+      <div class="wf-card">
+        <div class="step-n">1</div>
+        <div style="flex: 1;">
+          <p style="font-size: 13px; font-weight: 500; color: var(--color-text-primary); margin: 0 0 2px;">시장·고객 데이터 수집</p>
+          <p style="font-size: 11px; color: var(--color-text-secondary); margin: 0;">구매 데이터, 고객 피드백, 시장 트렌드 데이터를 채널별로 수집</p>
+        </div>
+        <span class="ai-tag">AI 적용 가능</span>
+      </div>
+
+      <div class="wf-card">
+        <div class="step-n">2</div>
+        <div style="flex: 1;">
+          <p style="font-size: 13px; font-weight: 500; color: var(--color-text-primary); margin: 0 0 2px;">타겟 고객 세그먼테이션</p>
+          <p style="font-size: 11px; color: var(--color-text-secondary); margin: 0;">수집 데이터 기반 고객 그룹 분류 및 타겟 세그먼트 도출</p>
+        </div>
+        <span class="ai-tag">AI 적용 가능</span>
+      </div>
+
+      <div class="wf-card">
+        <div class="step-n">3</div>
+        <div style="flex: 1;">
+          <p style="font-size: 13px; font-weight: 500; color: var(--color-text-primary); margin: 0 0 2px;">캠페인 기획 및 콘텐츠 제작</p>
+          <p style="font-size: 11px; color: var(--color-text-secondary); margin: 0;">타겟별 맞춤 마케팅 메시지 및 캠페인 자료 기획·제작</p>
+        </div>
+        <span class="ai-tag">AI 적용 가능</span>
+      </div>
+
+      <div class="wf-card">
+        <div class="step-n">4</div>
+        <div style="flex: 1;">
+          <p style="font-size: 13px; font-weight: 500; color: var(--color-text-primary); margin: 0 0 2px;">채널별 캠페인 집행</p>
+          <p style="font-size: 11px; color: var(--color-text-secondary); margin: 0;">온·오프라인 채널에 맞게 캠페인 운영 및 실시간 모니터링</p>
+        </div>
+        <span class="neutral-tag">검토 필요</span>
+      </div>
+
+      <div class="wf-card">
+        <div class="step-n">5</div>
+        <div style="flex: 1;">
+          <p style="font-size: 13px; font-weight: 500; color: var(--color-text-primary); margin: 0 0 2px;">성과 측정 및 리포팅</p>
+          <p style="font-size: 11px; color: var(--color-text-secondary); margin: 0;">KPI 기반 캠페인 성과 분석 및 개선사항 도출</p>
+        </div>
+        <span class="ai-tag">AI 적용 가능</span>
+      </div>
+
+      <div class="add-row">+ 단계 추가하기 (드래그로 순서 변경 가능)</div>
+
+      <div style="margin-top: 24px; padding-top: 20px; border-top: 0.5px solid var(--color-border-tertiary);">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+          <p style="font-size: 14px; font-weight: 500; color: var(--color-text-primary); margin: 0;">과제 후보 목록</p>
+          <button onclick="sendPrompt('AI 자동 과제 후보 도출 기능을 서비스에 어떻게 구현할 수 있을까요?')" style="font-size:11px; padding:5px 12px;">AI 자동 도출 ↗</button>
+        </div>
+
+        <div class="task-card">
+          <div class="task-dot"></div>
+          <div style="flex: 1;">
+            <p style="font-size: 13px; font-weight: 500; color: var(--color-text-primary); margin: 0 0 2px;">AI 기반 고객 세그먼테이션 자동화</p>
+            <p style="font-size: 11px; color: var(--color-text-secondary); margin: 0;">구매 이력·행동 데이터 기반 자동 세그먼트 분류 및 갱신</p>
+          </div>
+          <span class="prio-1">후보 1</span>
+        </div>
+
+        <div class="task-card">
+          <div class="task-dot"></div>
+          <div style="flex: 1;">
+            <p style="font-size: 13px; font-weight: 500; color: var(--color-text-primary); margin: 0 0 2px;">생성형 AI 활용 캠페인 콘텐츠 제작</p>
+            <p style="font-size: 11px; color: var(--color-text-secondary); margin: 0;">타겟 세그먼트별 맞춤 카피 및 이미지 초안 자동 생성</p>
+          </div>
+          <span style="font-size:11px; padding:2px 8px; border-radius:10px; background:var(--color-background-secondary); color:var(--color-text-secondary); white-space:nowrap; flex-shrink:0;">후보 2</span>
+        </div>
+
+        <div class="task-card">
+          <div class="task-dot"></div>
+          <div style="flex: 1;">
+            <p style="font-size: 13px; font-weight: 500; color: var(--color-text-primary); margin: 0 0 2px;">실시간 캠페인 성과 분석 대시보드</p>
+            <p style="font-size: 11px; color: var(--color-text-secondary); margin: 0;">채널별 KPI 자동 집계 및 AI 기반 인사이트 도출</p>
+          </div>
+          <span style="font-size:11px; padding:2px 8px; border-radius:10px; background:var(--color-background-secondary); color:var(--color-text-secondary); white-space:nowrap; flex-shrink:0;">후보 3</span>
+        </div>
+
+        <div class="add-row">+ 과제 후보 추가</div>
+      </div>
+
+      <div style="margin-top: 24px; padding: 16px; background: var(--color-background-secondary); border-radius: var(--border-radius-md);">
+        <p style="font-size: 13px; font-weight: 500; color: var(--color-text-primary); margin: 0 0 6px;">강사에게 질문하기</p>
+        <p style="font-size: 11px; color: var(--color-text-secondary); margin: 0 0 10px;">사전과제를 수행하면서 생긴 질문을 남기세요. 세션1 시작 시 답변드립니다.</p>
+        <textarea style="width:100%; height:54px; padding:8px 10px; font-size:12px; border:0.5px solid var(--color-border-secondary); border-radius:6px; background:var(--color-background-primary); color:var(--color-text-primary); resize:none; font-family:var(--font-sans);" placeholder="예: 영업과 마케팅 업무의 경계를 어떻게 설정해야 할지 모르겠습니다..."></textarea>
+        <div style="text-align:right; margin-top:6px;">
+          <button style="font-size:12px; padding:5px 14px; background:var(--color-background-info); color:var(--color-text-info); border:none; border-radius:6px; cursor:pointer; font-weight:500;">질문 제출</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div style="display:flex; align-items:center; justify-content:space-between; padding:10px 20px; border-top:0.5px solid var(--color-border-tertiary); background:var(--color-background-secondary);">
+    <span style="font-size:11px; color:var(--color-text-tertiary);">자동 저장됨 · 최종 저장: 방금 전</span>
+    <div style="display:flex; gap:8px;">
+      <button style="font-size:12px; padding:6px 14px;">임시 저장</button>
+      <button onclick="sendPrompt('사전과제를 완료하고 세션1으로 연결되는 플로우를 설계해주세요')" style="font-size:12px; padding:6px 18px; background:var(--color-background-info); color:var(--color-text-info); border:none; border-radius:var(--border-radius-md); cursor:pointer; font-weight:500;">사전과제 제출 →</button>
+    </div>
+  </div>
+
+</div>

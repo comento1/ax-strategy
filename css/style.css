@@ -1,0 +1,282 @@
+/* 롯데웰푸드 AX 전략 구체화 — 테마 변수 */
+:root {
+  --color-background-primary: #fafaf9;
+  --color-background-secondary: #f5f5f4;
+  --color-background-info: #e0f2fe;
+  --color-background-success: #dcfce7;
+  --color-background-warning: #fef3c7;
+  --color-text-primary: #1c1917;
+  --color-text-secondary: #57534e;
+  --color-text-tertiary: #78716c;
+  --color-text-info: #0369a1;
+  --color-text-success: #15803d;
+  --color-text-warning: #b45309;
+  --color-border-primary: #e7e5e4;
+  --color-border-secondary: #d6d3d1;
+  --color-border-tertiary: #a8a29e;
+  --border-radius-md: 8px;
+  --border-radius-lg: 12px;
+  --font-sans: "Malgun Gothic", "Apple SD Gothic Neo", -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; font-family: var(--font-sans); font-size: 13px; color: var(--color-text-primary); background: var(--color-background-secondary); line-height: 1.5; }
+button { font-family: inherit; cursor: pointer; }
+input, textarea, select { font-family: inherit; font-size: inherit; }
+
+/* 레이아웃 */
+.app-shell {
+  max-width: 900px;
+  margin: 20px auto;
+  background: var(--color-background-primary);
+  border-radius: var(--border-radius-lg);
+  border: 1px solid var(--color-border-tertiary);
+  overflow: hidden;
+  min-height: 560px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 헤더 · 단계 탭 */
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--color-border-tertiary);
+  background: var(--color-background-secondary);
+  flex-wrap: wrap;
+}
+.app-title { font-size: 14px; font-weight: 600; color: var(--color-text-primary); margin-right: 12px; }
+.ph-sep { width: 14px; height: 1px; background: var(--color-border-secondary); flex-shrink: 0; }
+.phase-pill {
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  border: none;
+  background: transparent;
+  color: var(--color-text-tertiary);
+}
+.phase-pill:hover { color: var(--color-text-primary); background: var(--color-background-primary); }
+.phase-pill.ph-active { background: var(--color-background-info); color: var(--color-text-info); }
+.phase-pill.ph-done { color: var(--color-text-success); }
+
+/* 메인 컨텐츠 */
+.app-main { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.phase-content { display: none; flex: 1; flex-direction: column; min-height: 0; }
+.phase-content.active { display: flex; }
+
+/* 사전과제: 2단 레이아웃 */
+.prework-layout {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  flex: 1;
+  min-height: 480px;
+}
+.prework-side {
+  border-right: 1px solid var(--color-border-tertiary);
+  padding: 16px;
+  background: var(--color-background-secondary);
+  overflow-y: auto;
+}
+.prework-body { padding: 20px; overflow-y: auto; }
+
+.section-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-tertiary);
+  letter-spacing: 0.04em;
+  margin: 0 0 10px;
+}
+.domain-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--border-radius-md);
+  cursor: pointer;
+  margin-bottom: 4px;
+  border: 1px solid transparent;
+}
+.domain-row:hover:not(.sel) { background: var(--color-background-primary); }
+.domain-row.sel { background: var(--color-background-info); border-color: var(--color-text-info); }
+.radio-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--color-border-secondary);
+  flex-shrink: 0;
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.domain-row.sel .radio-dot { background: var(--color-text-info); border-color: var(--color-text-info); }
+.domain-row.sel .radio-dot::after { content: ''; width: 6px; height: 6px; background: #fff; border-radius: 50%; }
+.domain-title { font-size: 12px; font-weight: 600; margin: 0 0 2px; }
+.domain-desc { font-size: 11px; color: var(--color-text-secondary); margin: 0; }
+.domain-row.sel .domain-title,
+.domain-row.sel .domain-desc { color: var(--color-text-info); }
+
+/* 가이드 */
+.guide-row { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 10px; }
+.guide-n {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--color-background-info);
+  color: var(--color-text-info);
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.guide-text { font-size: 11px; color: var(--color-text-secondary); margin: 0; line-height: 1.5; }
+.guide-text strong { color: var(--color-text-primary); }
+
+/* 인포 배너 */
+.info-banner {
+  background: var(--color-background-info);
+  border-radius: var(--border-radius-md);
+  padding: 12px 14px;
+  margin-bottom: 18px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.info-banner .icon { width: 20px; height: 20px; border-radius: 50%; background: var(--color-text-info); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; flex-shrink: 0; }
+.info-banner .title { font-size: 12px; font-weight: 600; color: var(--color-text-info); margin: 0 0 4px; }
+.info-banner .body { font-size: 11px; color: var(--color-text-info); margin: 0; line-height: 1.6; }
+
+/* 워크플로우 카드 */
+.wf-card {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  background: var(--color-background-secondary);
+  border: 1px solid var(--color-border-tertiary);
+  border-radius: var(--border-radius-md);
+  margin-bottom: 8px;
+}
+.wf-card:hover { border-color: var(--color-border-secondary); }
+.step-n {
+  width: 24px;
+  height: 24px;
+  background: var(--color-background-info);
+  color: var(--color-text-info);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.wf-card .title { font-size: 13px; font-weight: 600; margin: 0 0 2px; }
+.wf-card .desc { font-size: 11px; color: var(--color-text-secondary); margin: 0; }
+.wf-card .wf-input-title { display: block; width: 100%; font-size: 13px; font-weight: 600; margin: 0 0 4px; padding: 4px 0; border: none; border-bottom: 1px solid transparent; background: transparent; }
+.wf-card .wf-input-title:focus { border-bottom-color: var(--color-border-secondary); outline: none; }
+.wf-card .wf-input-desc { display: block; width: 100%; font-size: 11px; color: var(--color-text-secondary); padding: 2px 0; border: none; border-bottom: 1px solid transparent; background: transparent; }
+.wf-card .wf-input-desc:focus { border-bottom-color: var(--color-border-secondary); outline: none; }
+.tag {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.tag-ai { background: var(--color-background-success); color: var(--color-text-success); }
+.tag-review { background: var(--color-background-secondary); color: var(--color-text-tertiary); border: 1px solid var(--color-border-tertiary); }
+
+/* 과제 카드 */
+.task-card {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  background: var(--color-background-secondary);
+  border: 1px solid var(--color-border-tertiary);
+  border-radius: var(--border-radius-md);
+  margin-bottom: 8px;
+}
+.task-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-text-success); margin-top: 6px; flex-shrink: 0; }
+.task-card .title { font-size: 13px; font-weight: 600; margin: 0 0 2px; }
+.task-card .desc { font-size: 11px; color: var(--color-text-secondary); margin: 0; }
+.task-card .task-input-title { display: block; width: 100%; font-size: 13px; font-weight: 600; margin: 0 0 4px; padding: 4px 0; border: none; border-bottom: 1px solid transparent; background: transparent; }
+.task-card .task-input-title:focus { border-bottom-color: var(--color-border-secondary); outline: none; }
+.task-card .task-input-desc { display: block; width: 100%; font-size: 11px; color: var(--color-text-secondary); padding: 2px 0; border: none; border-bottom: 1px solid transparent; background: transparent; }
+.task-card .task-input-desc:focus { border-bottom-color: var(--color-border-secondary); outline: none; }
+.task-card .extra-title { display: block; width: 100%; font-size: 13px; font-weight: 600; margin: 0 0 4px; padding: 4px 0; border: none; border-bottom: 1px solid transparent; background: transparent; }
+.task-card .extra-title:focus { border-bottom-color: var(--color-border-secondary); outline: none; }
+.task-card .extra-desc { display: block; width: 100%; font-size: 11px; color: var(--color-text-secondary); padding: 2px 0; border: none; border-bottom: 1px solid transparent; background: transparent; }
+.task-card .extra-desc:focus { border-bottom-color: var(--color-border-secondary); outline: none; }
+.prio-badge { font-size: 11px; padding: 3px 8px; border-radius: 10px; white-space: nowrap; flex-shrink: 0; }
+.prio-1 { background: var(--color-background-warning); color: var(--color-text-warning); }
+.prio-n { background: var(--color-background-secondary); color: var(--color-text-secondary); }
+
+.add-row {
+  border: 1px dashed var(--color-border-secondary);
+  border-radius: var(--border-radius-md);
+  padding: 10px 12px;
+  text-align: center;
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+  cursor: pointer;
+  margin-top: 4px;
+}
+.add-row:hover { background: var(--color-background-secondary); color: var(--color-text-secondary); }
+
+/* 버튼 */
+.btn { font-size: 12px; padding: 6px 14px; border-radius: var(--border-radius-md); border: 1px solid var(--color-border-secondary); background: var(--color-background-primary); color: var(--color-text-primary); }
+.btn:hover { background: var(--color-background-secondary); }
+.btn-primary { background: var(--color-background-info); color: var(--color-text-info); border-color: var(--color-text-info); }
+.btn-primary:hover { opacity: 0.9; }
+.btn-sm { font-size: 11px; padding: 5px 12px; }
+
+/* 세션 공통 */
+.section-title { font-size: 14px; font-weight: 600; margin: 0 0 4px; }
+.section-sub { font-size: 11px; color: var(--color-text-secondary); margin: 0 0 12px; }
+.section-block { margin-bottom: 24px; }
+.section-block h3 { font-size: 13px; font-weight: 600; margin: 0 0 10px; }
+
+/* ICE 테이블 */
+.ice-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.ice-table th, .ice-table td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--color-border-primary); }
+.ice-table th { font-weight: 600; color: var(--color-text-secondary); background: var(--color-background-secondary); }
+.ice-table input[type="number"] { width: 48px; padding: 4px 6px; border: 1px solid var(--color-border-secondary); border-radius: 4px; }
+.ice-table .ice-score { font-weight: 600; color: var(--color-text-info); }
+
+/* 세션2 트랙 */
+.track-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+.track-tab { padding: 8px 16px; border-radius: var(--border-radius-md); border: 1px solid var(--color-border-secondary); background: var(--color-background-primary); cursor: pointer; font-size: 12px; }
+.track-tab.active { background: var(--color-background-info); color: var(--color-text-info); border-color: var(--color-text-info); }
+
+/* 세션3 과제정의서 */
+.def-card { background: var(--color-background-secondary); border: 1px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); padding: 14px; margin-bottom: 12px; }
+.def-card label { display: block; font-size: 11px; font-weight: 600; color: var(--color-text-tertiary); margin-bottom: 4px; }
+.def-card input, .def-card textarea { width: 100%; padding: 6px 8px; border: 1px solid var(--color-border-secondary); border-radius: 4px; }
+.def-card textarea { min-height: 60px; resize: vertical; }
+
+/* 푸터 */
+.app-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 20px;
+  border-top: 1px solid var(--color-border-tertiary);
+  background: var(--color-background-secondary);
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+}
+
+/* 인쇄용 과제정의서 */
+@media print {
+  .app-header, .app-footer, .phase-pill, .btn, .add-row, .track-tabs, .no-print { display: none !important; }
+  .phase-content { display: block !important; }
+  .app-shell { max-width: none; border: none; }
+}

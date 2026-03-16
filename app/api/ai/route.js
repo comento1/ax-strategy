@@ -1,0 +1,60 @@
+import { NextResponse } from 'next/server';
+
+const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+
+export async function POST(req) {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) {
+    return NextResponse.json({ error: 'GEMINI_API_KEY가 설정되지 않았습니다.' }, { status: 500 });
+  }
+  try {
+    const body = await req.json();
+    const { type, context, userInput } = body;
+    let prompt = '';
+    if (type === 'workflow') {
+      prompt = `당신은 롯데웰푸드 팀장/매니저의 업무 설계를 돕는 조력자입니다.
+아래 "임원이 정의한 AI 활용 영역"에 맞춰, 해당 업무의 워크플로우(업무 단계)를 구체적으로 나열해 주세요.
+각 단계마다 제목과 한 줄 설명을 주고, AI 적용이 유력한 단계에는 "(AI 적용 가능)"이라고 표시해 주세요.
+형식: 1. [제목] — [설명] (AI 적용 가능 여부)
+
+임원 AI 활용 영역(또는 선택한 전략):
+${context || '없음'}
+
+사용자 추가 설명:
+${userInput || '없음'}
+
+한국어로만 답변하고, 번호 목록 형태로만 출력해 주세요.`;
+    } else if (type === 'task') {
+      prompt = `당신은 롯데웰푸드 팀장/매니저의 AI 과제 도출을 돕는 조력자입니다.
+아래 워크플로우를 보고, 실행 가능한 "과제 후보"를 2~5개 도출해 주세요.
+각 과제는 한 줄 제목과 한 두 문장 설명으로 적어 주세요.
+
+워크플로우:
+${context || '없음'}
+
+사용자 추가 설명:
+${userInput || '없음'}
+
+한국어로만 답변하고, 각 과제를 "제목: ... 설명: ..." 형태로 구분해 주세요.`;
+    } else {
+      return NextResponse.json({ error: 'type은 workflow 또는 task여야 합니다.' }, { status: 400 });
+    }
+    const res = await fetch(`${GEMINI_URL}?key=${encodeURIComponent(key)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.4, maxOutputTokens: 1024 },
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      return NextResponse.json({ error: 'Gemini API 오류: ' + err }, { status: 502 });
+    }
+    const data = await res.json();
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    return NextResponse.json({ text });
+  } catch (e) {
+    return NextResponse.json({ error: String(e.message) }, { status: 500 });
+  }
+}
