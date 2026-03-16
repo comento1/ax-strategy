@@ -42,7 +42,48 @@
 .strategy-detail-row { display: block; margin-bottom: 8px; font-size: 12px; }
 .strategy-detail-label { display: inline-block; font-weight: 600; color: var(--color-text-tertiary); min-width: 140px; }
 .strategy-detail-value { color: var(--color-text-primary); }
+.strategy-card-hint { font-size: 11px; color: var(--color-text-tertiary); margin: 6px 0 0; }
 .review-actions { margin-top: 24px; }
+
+/* 보기 본부 드롭다운 */
+.view-dept-wrap { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+.view-dept-label { font-size: 12px; font-weight: 600; color: var(--color-text-secondary); }
+.view-dept-select {
+  min-width: 200px; padding: 10px 14px 10px 12px; font-size: 13px;
+  border: 1px solid var(--color-border-secondary); border-radius: var(--border-radius-md);
+  background: var(--color-background-primary); color: var(--color-text-primary);
+  cursor: pointer; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2378716c' d='M2.5 4.5L6 8l3.5-3.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px;
+}
+.view-dept-select:hover { border-color: var(--color-border-tertiary); }
+.view-dept-select:focus { outline: none; border-color: var(--color-text-info); }
+
+/* 전략 상세 카드형 */
+.strategy-detail-cards { display: grid; gap: 12px; margin-top: 14px; }
+.strategy-detail-card {
+  background: var(--color-background-primary); border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-md); padding: 12px 14px;
+}
+.strategy-detail-card .strategy-detail-label { display: block; margin-bottom: 6px; font-size: 11px; }
+.strategy-detail-card .strategy-detail-value { display: block; font-size: 12px; line-height: 1.5; white-space: pre-wrap; }
+
+/* 단계별 핵심 가이드 */
+.step-guide { font-size: 12px; color: var(--color-text-secondary); margin: 0 0 14px; line-height: 1.5; }
+
+/* 과제 추가 버튼 UX */
+.task-add-buttons { display: flex; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+.btn-task-add {
+  display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; font-size: 13px; font-weight: 500;
+  border-radius: var(--border-radius-md); border: 1px solid var(--color-border-secondary);
+  background: var(--color-background-primary); color: var(--color-text-primary); cursor: pointer;
+}
+.btn-task-add:hover { background: var(--color-background-secondary); }
+.btn-task-add-icon { font-size: 14px; opacity: 0.8; }
+.btn-task-high { border-color: var(--color-text-info); background: var(--color-background-info); color: var(--color-text-info); }
+.btn-task-high:hover { filter: brightness(0.98); }
+.btn-task-low { border-color: var(--color-border-tertiary); color: var(--color-text-secondary); }
+.btn-task-low:hover { background: var(--color-background-secondary); }
 
 /* 워크플로우 가이드 */
 .wf-guide-text { font-size: 12px; color: var(--color-text-secondary); margin: 0 0 12px; line-height: 1.5; }

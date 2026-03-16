@@ -128,6 +128,7 @@ function doGet(e) {
               obj[key] = val;
               if (key === '작성본부' && val) deptSet[val] = true;
             }
+            if (headers.length > 6 && row[6] != null) obj['_G열'] = String(row[6]).trim();
             strategies.push(obj);
           }
           departments = Object.keys(deptSet).sort();
