@@ -22,8 +22,9 @@ async function proxyToSheets(method, req) {
         return NextResponse.json(data || { error: 'Sheets Web App 오류' }, { status: res.status >= 400 ? res.status : 500 });
       }
       if (Array.isArray(data)) return NextResponse.json(data);
-      if (data && typeof data === 'object' && data.error) return NextResponse.json([]);
-      return NextResponse.json([]);
+      if (data && typeof data === 'object' && data.error) return NextResponse.json(data.error ? { error: data.error } : []);
+      // 객체 응답 그대로 반환 (예: { ideas: [...] } 세션2 아이디어 목록)
+      return NextResponse.json(data || {});
     }
 
     if (method === 'POST') {

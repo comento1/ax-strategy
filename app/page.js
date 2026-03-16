@@ -457,14 +457,9 @@ export default function Home() {
     .map((r) => ({ id: `s2row:${r.rowIndex || 0}`, title: r.title, desc: [r.asIs, r.toBe].filter(Boolean).join('\n\n'), source: 'session2_idea' }));
   const selectedDept = (viewSession2Dept || department || '').trim();
   const selectedDeptNorm = normalizeDept(selectedDept);
-  const myIdeasDisplay = (sharedSession2Ideas || [])
-    .filter((r) => normalizeDept(r.department) === selectedDeptNorm)
-    .sort((a, b) => {
-      const ca = (a.createdAt || '').trim();
-      const cb = (b.createdAt || '').trim();
-      if (ca && cb && ca !== cb) return cb.localeCompare(ca);
-      return (b.rowIndex ?? 0) - (a.rowIndex ?? 0);
-    });
+  const myIdeasDisplay = (sharedSession2Ideas || []).filter(
+    (r) => normalizeDept(r.department) === selectedDeptNorm
+  );
   const tasksForIceRaw = [...baseIceTasks, ...selectedIdeasAsTasks].filter((t) => !isSampleTitle(t.title));
   const iceScoreForTask = (t) => iceScore(session1.evaluations?.[t.id]);
   const tasksForIce = [...tasksForIceRaw].sort((a, b) => {
@@ -521,7 +516,7 @@ export default function Home() {
     const toBeVal = (toBe || '').trim();
 
     try {
-      await fetch('/api/prework', {
+      const res = await fetch('/api/prework', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -532,7 +527,13 @@ export default function Home() {
           items: [{ title: t, asIs: asIsVal, toBe: toBeVal, desc: [asIsVal, toBeVal].filter(Boolean).join('\n\n') }],
         }),
       });
-      await fetchSharedSession2Ideas();
+      const data = await res.json().catch(() => ({}));
+      // 등록 응답에 해당 본부 아이디어 목록이 있으면 그대로 사용 → 시트 반영 직후 바로 표시
+      if (Array.isArray(data.ideas)) {
+        setSharedSession2Ideas(data.ideas);
+      } else {
+        await fetchSharedSession2Ideas();
+      }
     } catch {
       // 실패 시 시트 반영 안 됨
     }

@@ -179,55 +179,8 @@ function doGet(e) {
       var ss2 = SpreadsheetApp.getActiveSpreadsheet();
       var s2Sheet = ss2.getSheetByName(SESSION2_SHEET_NAME);
       if (!s2Sheet) return jsonResponse({ ideas: [] });
-
-      var data2 = s2Sheet.getDataRange().getValues();
-      if (data2.length < 2) return jsonResponse({ ideas: [] });
-
-      var headers2 = data2[0];
-      var deptIdx = headers2.indexOf('작성본부');
-      if (deptIdx < 0) deptIdx = 1; // B열(본부) fallback
-      var titleIdx = headers2.indexOf('과제제목');
-      var asIsIdx = headers2.indexOf('AS-IS');
-      var toBeIdx = headers2.indexOf('TO-BE');
-      var descIdx = headers2.indexOf('비고');
-      var typeIdx = headers2.indexOf('유형(임원 확장/신규)');
-      var createdIdx = headers2.indexOf('제출일시');
-      var nameIdx = headers2.indexOf('참가자이름');
-      var posIdx = headers2.indexOf('직급');
-      var iceCol = headers2.indexOf('ICE선정');
-      if (iceCol < 0 && headers2.length >= SESSION2_ICE_COL) iceCol = SESSION2_ICE_COL - 1;
-
-      var filterDept2 = normalizeDept(params.department);
-      var ideas = [];
-
-      for (var r = 1; r < data2.length; r++) {
-        var row2 = data2[r];
-        var dept2 = normalizeDept(deptIdx >= 0 ? row2[deptIdx] : '');
-        if (filterDept2 && dept2 !== filterDept2) continue;
-
-        var title2 = titleIdx >= 0 && row2[titleIdx] != null ? String(row2[titleIdx]).trim() : '';
-        if (!title2) continue;
-        if (isSampleTitle(title2)) continue;
-
-        var iceVal = iceCol >= 0 && row2[iceCol] != null ? String(row2[iceCol]).trim().toUpperCase() : '';
-        var iceSelected = iceVal === 'Y' || iceVal === '1' || iceVal === 'TRUE';
-
-        var displayDept2 = deptIdx >= 0 && row2[deptIdx] != null ? String(row2[deptIdx]).trim() : '';
-        ideas.push({
-          rowIndex: r + 1,
-          department: displayDept2 || dept2,
-          title: title2,
-          asIs: asIsIdx >= 0 && row2[asIsIdx] != null ? String(row2[asIsIdx]).trim() : '',
-          toBe: toBeIdx >= 0 && row2[toBeIdx] != null ? String(row2[toBeIdx]).trim() : '',
-          desc: descIdx >= 0 && row2[descIdx] != null ? String(row2[descIdx]).trim() : '',
-          type: typeIdx >= 0 && row2[typeIdx] != null ? String(row2[typeIdx]).trim() : '',
-          createdAt: createdIdx >= 0 && row2[createdIdx] != null ? String(row2[createdIdx]).trim() : '',
-          participantName: nameIdx >= 0 && row2[nameIdx] != null ? String(row2[nameIdx]).trim() : '',
-          participantPosition: posIdx >= 0 && row2[posIdx] != null ? String(row2[posIdx]).trim() : '',
-          iceSelected: iceSelected
-        });
-      }
-
+      var filterDeptNorm = normalizeDept(params.department);
+      var ideas = getSession2IdeasFromSheet(s2Sheet, filterDeptNorm);
       return jsonResponse({ ideas: ideas });
     } catch (err) {
       return jsonResponse({ ideas: [], error: String(err.message) });
@@ -392,7 +345,9 @@ function doPost(e) {
           ''
         ]);
       });
-      return jsonResponse({ ok: true });
+      // 등록 직후 같은 요청 안에서 시트를 다시 읽어 목록 반환 → 클라이언트가 바로 표시 가능
+      var ideas = getSession2IdeasFromSheet(s2Sheet, normalizeDept(dept));
+      return jsonResponse({ ok: true, ideas: ideas });
     }
 
     if (data.action === 'session2_select') {
@@ -488,6 +443,52 @@ function getQuestionsSheet() {
 }
 
 var SESSION2_ICE_COL = 10; // ICE선정 컬럼(1-based)
+
+/** 세션2 시트에서 해당 본부 아이디어 목록 반환. filterDeptNorm은 normalizeDept() 적용된 값. */
+function getSession2IdeasFromSheet(s2Sheet, filterDeptNorm) {
+  if (!s2Sheet) return [];
+  var data2 = s2Sheet.getDataRange().getValues();
+  if (data2.length < 2) return [];
+  var headers2 = data2[0];
+  var deptIdx = headers2.indexOf('작성본부');
+  if (deptIdx < 0) deptIdx = 1;
+  var titleIdx = headers2.indexOf('과제제목');
+  var asIsIdx = headers2.indexOf('AS-IS');
+  var toBeIdx = headers2.indexOf('TO-BE');
+  var descIdx = headers2.indexOf('비고');
+  var typeIdx = headers2.indexOf('유형(임원 확장/신규)');
+  var createdIdx = headers2.indexOf('제출일시');
+  var nameIdx = headers2.indexOf('참가자이름');
+  var posIdx = headers2.indexOf('직급');
+  var iceCol = headers2.indexOf('ICE선정');
+  if (iceCol < 0 && headers2.length >= SESSION2_ICE_COL) iceCol = SESSION2_ICE_COL - 1;
+  var ideas = [];
+  for (var r = 1; r < data2.length; r++) {
+    var row2 = data2[r];
+    var dept2 = normalizeDept(deptIdx >= 0 ? row2[deptIdx] : '');
+    if (filterDeptNorm && dept2 !== filterDeptNorm) continue;
+    var title2 = titleIdx >= 0 && row2[titleIdx] != null ? String(row2[titleIdx]).trim() : '';
+    if (!title2) continue;
+    if (isSampleTitle(title2)) continue;
+    var iceVal = iceCol >= 0 && row2[iceCol] != null ? String(row2[iceCol]).trim().toUpperCase() : '';
+    var iceSelected = iceVal === 'Y' || iceVal === '1' || iceVal === 'TRUE';
+    var displayDept2 = deptIdx >= 0 && row2[deptIdx] != null ? String(row2[deptIdx]).trim() : '';
+    ideas.push({
+      rowIndex: r + 1,
+      department: displayDept2 || dept2,
+      title: title2,
+      asIs: asIsIdx >= 0 && row2[asIsIdx] != null ? String(row2[asIsIdx]).trim() : '',
+      toBe: toBeIdx >= 0 && row2[toBeIdx] != null ? String(row2[toBeIdx]).trim() : '',
+      desc: descIdx >= 0 && row2[descIdx] != null ? String(row2[descIdx]).trim() : '',
+      type: typeIdx >= 0 && row2[typeIdx] != null ? String(row2[typeIdx]).trim() : '',
+      createdAt: createdIdx >= 0 && row2[createdIdx] != null ? String(row2[createdIdx]).trim() : '',
+      participantName: nameIdx >= 0 && row2[nameIdx] != null ? String(row2[nameIdx]).trim() : '',
+      participantPosition: posIdx >= 0 && row2[posIdx] != null ? String(row2[posIdx]).trim() : '',
+      iceSelected: iceSelected
+    });
+  }
+  return ideas;
+}
 
 function getSession2Sheet() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
