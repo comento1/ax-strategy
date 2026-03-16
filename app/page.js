@@ -59,10 +59,11 @@ export default function Home() {
   });
   const [session2, setSession2] = useState(() => {
     const local = loadLocal();
-    return local?.session2 || { ideas: [], recommended: [], extraB: [], registeredIdeas: [], selectedIds: [] };
+    return local?.session2 || { ideas: [], recommended: [], extraB: [], registeredIdeas: [], recentlyRegistered: [], selectedIds: [] };
   });
   const [sharedSession2Ideas, setSharedSession2Ideas] = useState([]);
   const [viewSession2Dept, setViewSession2Dept] = useState(''); // 세션2 공유 아이디어 조회용 본부
+  const [icePreworkTasks, setIcePreworkTasks] = useState([]); // Prework 시트 H열(과제목록) 기반 ICE 과제
   const [session3, setSession3] = useState(() => {
     const local = loadLocal();
     return local?.session3 || { definitions: {} };
@@ -128,6 +129,40 @@ export default function Home() {
   useEffect(() => {
     if (phase === 'session2') fetchSharedSession2Ideas();
   }, [phase, fetchSharedSession2Ideas]);
+
+  // Prework 시트 H열(과제목록) 기반 ICE 과제 로드 — 세션2에서 실제 시트 데이터 사용
+  useEffect(() => {
+    if (phase !== 'session2') return;
+    const dept = (department || '').trim();
+    if (!dept) { setIcePreworkTasks([]); return; }
+    fetch(`/api/prework?department=${encodeURIComponent(dept)}`)
+      .then((r) => r.json())
+      .then((list) => {
+        const arr = Array.isArray(list) ? list : [];
+        const flat = arr.flatMap((pw) => (pw.taskCandidates || []).map((t) => ({
+          id: `${pw.id || 'pw'}-${t.id || id()}`,
+          title: t.title,
+          desc: t.desc || '',
+          level: t.level,
+          source: 'prework_sheet',
+        })));
+        setIcePreworkTasks(flat.filter((t) => !isSampleTitle(t.title)));
+      })
+      .catch(() => setIcePreworkTasks([]));
+  }, [phase, department]);
+
+  // 시트에서 본인 아이디어가 반영되면 recentlyRegistered에서 제거
+  useEffect(() => {
+    const mine = (sharedSession2Ideas || []).filter(
+      (r) => (r.department || '').trim() === (department || '').trim() && (r.participantName || '').trim() === (participantName || '').trim()
+    );
+    setSession2((s) => ({
+      ...s,
+      recentlyRegistered: (s.recentlyRegistered || []).filter(
+        (r) => !mine.some((i) => (i.title || '').trim() === (r.title || '').trim() && (i.asIs || '').trim() === (r.asIs || '').trim())
+      ),
+    }));
+  }, [sharedSession2Ideas, department, participantName]);
 
   useEffect(() => {
     fetch('/api/logo')
@@ -392,16 +427,23 @@ export default function Home() {
     return Math.round(((ev.impact + ev.ease + ev.confidence) / 3) * 10) / 10;
   };
   const baseIceTasks = agreedTasks.length > 0 ? agreedTasks : [
-    ...(prework.taskCandidates || []),
+    ...icePreworkTasks,
     ...(session2.extraB || []).map((t) => ({ ...t, source: 'extraB' })),
   ];
   const selectedIdsForIdeas = session2.selectedIds || [];
-  const selectedIdeasAsTasks = (sharedSession2Ideas || [])
-    .filter((r) => selectedIdsForIdeas.includes(makeSharedIdeaId(r)))
-    .map((r) => ({ id: makeSharedIdeaId(r), title: r.title, desc: [r.asIs, r.toBe].filter(Boolean).join('\n\n'), source: 'session2_idea' }));
+  const selectedIdeasAsTasks = [
+    ...(sharedSession2Ideas || [])
+      .filter((r) => selectedIdsForIdeas.includes(makeSharedIdeaId(r)))
+      .map((r) => ({ id: makeSharedIdeaId(r), title: r.title, desc: [r.asIs, r.toBe].filter(Boolean).join('\n\n'), source: 'session2_idea' })),
+    ...(session2.recentlyRegistered || [])
+      .filter((r) => selectedIdsForIdeas.includes(r.id))
+      .map((r) => ({ id: r.id, title: r.title, desc: [r.asIs, r.toBe].filter(Boolean).join('\n\n'), source: 'session2_idea' })),
+  ];
   const mySession2Ideas = (sharedSession2Ideas || []).filter(
     (r) => (r.department || '').trim() === (department || '').trim() && (r.participantName || '').trim() === (participantName || '').trim()
   );
+  const recentlyRegistered = session2.recentlyRegistered || [];
+  const myIdeasDisplay = [...recentlyRegistered, ...mySession2Ideas];
   const tasksForIceRaw = [...baseIceTasks, ...selectedIdeasAsTasks].filter((t) => !isSampleTitle(t.title));
   const iceScoreForTask = (t) => iceScore(session1.evaluations?.[t.id]);
   const tasksForIce = [...tasksForIceRaw].sort((a, b) => {
@@ -457,6 +499,12 @@ export default function Home() {
     if (!t) return;
     const asIsVal = (asIs || '').trim();
     const toBeVal = (toBe || '').trim();
+    const newId = 'recent:' + id();
+
+    setSession2((s) => ({
+      ...s,
+      recentlyRegistered: [...(s.recentlyRegistered || []), { id: newId, title: t, asIs: asIsVal, toBe: toBeVal }],
+    }));
 
     try {
       await fetch('/api/prework', {
@@ -472,7 +520,7 @@ export default function Home() {
       });
       await fetchSharedSession2Ideas();
     } catch {
-      // 실패 시 사용자에게 알릴 수 있음
+      // 실패 시에도 로컬에는 이미 반영됨
     }
   };
   const toggleIdeaSelected = (ideaId) => {
@@ -1172,13 +1220,8 @@ export default function Home() {
               </div>
               <div className="section-block">
                 <h3>내가 방금 등록한 아이디어</h3>
-                <p className="section-sub">Session2Selections 시트에 등록된 본인 아이디어만 표시됩니다. ICE 평가 대상으로 올리려면 「과제 리스트에 추가하기」를 눌러 주세요. 등록 후 목록 새로고침을 누르면 반영됩니다.</p>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                  <button type="button" className="btn btn-sm" onClick={fetchSharedSession2Ideas}>목록 새로고침</button>
-                </div>
-                {mySession2Ideas.length === 0 && <p className="section-sub">시트에 등록된 본인 아이디어가 없습니다. 위에서 작성 후 등록하고 새로고침해 주세요.</p>}
-                {mySession2Ideas.map((r) => {
-                  const rid = makeSharedIdeaId(r);
+                {myIdeasDisplay.map((r) => {
+                  const rid = r.id && r.id.startsWith('recent:') ? r.id : makeSharedIdeaId(r);
                   const selected = selectedIds.includes(rid);
                   return (
                     <div key={rid} className={`task-card session2-registered ${selected ? 'session2-selected' : ''}`} style={{ marginBottom: 10 }}>
