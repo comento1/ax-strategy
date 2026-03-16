@@ -159,18 +159,28 @@ export default function Home() {
     if (phase === 'session2' && session2Step === 'ice') fetchIcePreworkTasks();
   }, [phase, session2Step, fetchIcePreworkTasks]);
 
-  // 시트에서 본인 아이디어가 반영되면 recentlyRegistered에서 제거
+  // 시트에서 본인 아이디어가 반영되면 recentlyRegistered에서 제거하고, 선정(selectedIds)은 시트 id로 보정해 ICE에 유지
   useEffect(() => {
     const mine = (sharedSession2Ideas || []).filter(
       (r) => (r.department || '').trim() === (department || '').trim() && (r.participantName || '').trim() === (participantName || '').trim()
     );
-    setSession2((s) => ({
-      ...s,
-      recentlyRegistered: (s.recentlyRegistered || []).filter(
-        (r) => !mine.some((i) => (i.title || '').trim() === (r.title || '').trim() && (i.asIs || '').trim() === (r.asIs || '').trim())
-      ),
-    }));
-  }, [sharedSession2Ideas, department, participantName]);
+    setSession2((s) => {
+      const rec = s.recentlyRegistered || [];
+      const ids = s.selectedIds || [];
+      const toRemoveIds = [];
+      const toAddIds = [];
+      rec.forEach((r) => {
+        const sheetMatch = mine.find((i) => (i.title || '').trim() === (r.title || '').trim() && (i.asIs || '').trim() === (r.asIs || '').trim());
+        if (sheetMatch) {
+          toRemoveIds.push(r.id);
+          toAddIds.push(makeSharedIdeaId(sheetMatch));
+        }
+      });
+      const newRec = rec.filter((r) => !toRemoveIds.includes(r.id));
+      const newIds = [...ids.filter((id) => !toRemoveIds.includes(id)), ...toAddIds.filter((id) => !ids.includes(id))];
+      return { ...s, recentlyRegistered: newRec, selectedIds: newIds };
+    });
+  }, [sharedSession2Ideas, department, participantName, makeSharedIdeaId]);
 
   useEffect(() => {
     fetch('/api/logo')
@@ -477,13 +487,12 @@ export default function Home() {
   const setPriorityRank = (taskId, rank) => {
     setSession1((s) => {
       const prev = s.priorityRanks || {};
-      if (rank === '') {
-        const next = { ...prev }; delete next[taskId]; return { ...s, priorityRanks: next };
-      }
-      const num = Number(rank);
       const next = { ...prev };
-      Object.keys(next).forEach((id) => { if (next[id] === num && id !== taskId) delete next[id]; });
-      next[taskId] = num;
+      if (rank === '') {
+        delete next[taskId];
+        return { ...s, priorityRanks: next };
+      }
+      next[taskId] = Number(rank);
       return { ...s, priorityRanks: next };
     });
   };
@@ -546,6 +555,7 @@ export default function Home() {
   };
 
   const goToSession2IceStep = () => {
+    fetchSharedSession2Ideas();
     setSession2Step('ice');
     setTimeout(() => {
       try {
