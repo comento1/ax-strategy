@@ -211,3 +211,53 @@
 .ice-criteria-list { font-size: 12px; color: var(--color-text-secondary); margin: 0 0 12px; padding-left: 20px; line-height: 1.6; }
 .ice-table select { padding: 4px 6px; font-size: 12px; border: 1px solid var(--color-border-secondary); border-radius: 4px; min-width: 56px; }
 .ice-confirm-label { font-size: 11px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 4px; }
+
+/* 스티키 헤더 (사전과제·세션1·2·3) */
+.app-header-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: var(--color-background-secondary);
+  box-shadow: 0 1px 0 var(--color-border-tertiary);
+}
+
+/* 세션1: 목록 / ICE 섹션 구분 */
+.session1-section { margin-bottom: 24px; }
+.session1-section.session1-ice-section { padding-top: 20px; border-top: 2px solid var(--color-border-secondary); }
+
+/* 워크플로우 예시 마크다운 */
+.wf-example-markdown .wf-example-body { margin-top: 10px; padding: 12px; background: var(--color-background-primary); border-radius: var(--border-radius-md); font-size: 12px; line-height: 1.6; }
+.wf-example-markdown .wf-example-body h1, .wf-example-markdown .wf-example-body h2 { font-size: 14px; margin: 12px 0 6px; }
+.wf-example-markdown .wf-example-body h2:first-child { margin-top: 0; }
+.wf-example-markdown .wf-example-body ul { margin: 6px 0; padding-left: 20px; }
+.wf-example-markdown .wf-example-body p { margin: 4px 0; }
+
+/* 과제 후보: 워크플로우 플로우차트 */
+.workflow-flowchart { margin-bottom: 16px; padding: 12px; background: var(--color-background-secondary); border: 1px solid var(--color-border-primary); border-radius: var(--border-radius-md); }
+.flowchart-steps { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.flowchart-step { display: flex; align-items: center; gap: 8px; }
+.flowchart-step-n { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; background: var(--color-background-info); color: var(--color-text-info); font-size: 11px; font-weight: 600; flex-shrink: 0; }
+.flowchart-step-body { font-size: 12px; }
+.flowchart-step-desc { color: var(--color-text-secondary); }
+.flowchart-arrow { color: var(--color-text-tertiary); font-size: 14px; margin: 0 4px; }
+
+/* 세션2 등록 목록·체크 */
+.session2-draft { margin-bottom: 0; }
+.session2-registered { display: flex; align-items: flex-start; gap: 12px; }
+.session2-check-wrap { display: flex; align-items: center; gap: 6px; flex-shrink: 0; margin: 0; }
+.session2-check-wrap input { cursor: pointer; }
+.session2-check-label { font-size: 12px; color: var(--color-text-secondary); cursor: pointer; }
+
+/* 세션3 과제정의서: 좌측 폼 / 우측 사이드바 */
+.session3-def-layout { display: grid; grid-template-columns: 1fr 320px; gap: 24px; align-items: start; }
+.session3-def-main { min-width: 0; }
+.session3-def-sidebar { position: sticky; top: 80px; display: flex; flex-direction: column; gap: 16px; }
+.session3-def-view .def-field-row { margin-bottom: 20px; }
+.session3-def-view .def-field-label { display: block; font-size: 12px; font-weight: 600; color: var(--color-text-primary); margin-bottom: 6px; line-height: 1.4; }
+.def-field-input { width: 100%; padding: 10px 12px; font-size: 13px; border: 1px solid var(--color-border-secondary); border-radius: var(--border-radius-md); background: var(--color-background-primary); color: var(--color-text-primary); }
+.def-field-input:focus { outline: none; border-color: var(--color-text-info); }
+.def-field-textarea { min-height: 100px; resize: vertical; }
+@media (max-width: 768px) {
+  .session3-def-layout { grid-template-columns: 1fr; }
+  .session3-def-sidebar { position: static; }
+}

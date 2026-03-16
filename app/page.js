@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import ReactMarkdown from 'react-markdown';
 
 const STORAGE_KEY = 'ax_workshop';
 
@@ -47,7 +48,7 @@ export default function Home() {
   });
   const [session2, setSession2] = useState(() => {
     const local = loadLocal();
-    return local?.session2 || { ideas: [], recommended: [], extraB: [] };
+    return local?.session2 || { ideas: [], recommended: [], extraB: [], registeredIdeas: [], selectedIds: [] };
   });
   const [session3, setSession3] = useState(() => {
     const local = loadLocal();
@@ -74,6 +75,8 @@ export default function Home() {
   const [questionSubmitted, setQuestionSubmitted] = useState(false); // 질문 제출 후 "등록되었습니다" 표시
   const [detailModalStrategy, setDetailModalStrategy] = useState(null); // 리뷰/사전과제에서 전략 상세 모달
   const [session3SelectedTaskId, setSession3SelectedTaskId] = useState(null); // 세션3에서 선택한 과제(정의서 보기)
+  const [session2DraftTitle, setSession2DraftTitle] = useState('');
+  const [session2DraftContent, setSession2DraftContent] = useState('');
 
   useEffect(() => {
     fetch('/api/logo')
@@ -94,13 +97,15 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (phase === 'session1' && department) {
-      fetch(`/api/prework?department=${encodeURIComponent(department)}`)
+    if (phase === 'session1' && (department || '').trim()) {
+      const dept = (department || '').trim();
+      fetch(`/api/prework?department=${encodeURIComponent(dept)}`)
         .then((r) => r.json())
         .then((list) => {
-          setSharedPrework(list);
-          if (agreedTasks.length === 0 && list.length > 0) {
-            const flat = list.flatMap((pw) => (pw.taskCandidates || []).map((t) => ({
+          const arr = Array.isArray(list) ? list : [];
+          setSharedPrework(arr);
+          if (agreedTasks.length === 0 && arr.length > 0) {
+            const flat = arr.flatMap((pw) => (pw.taskCandidates || []).map((t) => ({
               id: t.id,
               title: t.title,
               desc: t.desc,
@@ -181,14 +186,25 @@ export default function Home() {
     }
   };
   const applySplitFromText = (text) => {
-    const lines = (text || '').split('\n').filter((l) => /^\d+\./.test(l.trim()));
-    const newSteps = lines.map((line, i) => {
-      const clean = line.replace(/^\d+\.\s*/, '').trim();
+    const allLines = (text || '').split('\n');
+    const blocks = [];
+    let current = null;
+    allLines.forEach((line) => {
+      const m = line.trim().match(/^(\d+)\.\s*(.*)/);
+      if (m) {
+        current = { title: '', desc: '', raw: m[2] };
+        blocks.push(current);
+      } else if (current && line.trim()) {
+        current.desc = (current.desc ? current.desc + '\n' : '') + line.trim();
+      }
+    });
+    const newSteps = blocks.map((b, i) => {
+      const clean = (b.raw || '') + (b.desc ? '\n' + b.desc : '');
       const dash = clean.indexOf(' — ');
-      const title = dash >= 0 ? clean.substring(0, dash).trim() : clean;
-      const rest = dash >= 0 ? clean.substring(dash + 3).trim() : '';
+      const title = dash >= 0 ? clean.substring(0, dash).trim() : clean.split('\n')[0]?.trim() || '';
+      const rest = dash >= 0 ? clean.substring(dash + 3).trim() : clean;
       const paren = rest.lastIndexOf('(');
-      const desc = paren >= 0 ? rest.substring(0, paren).trim() : rest;
+      const desc = (paren >= 0 ? rest.substring(0, paren).trim() : rest).replace(/\n+/g, '\n').trim();
       const aiTag = (rest.indexOf('AI 적용 가능') >= 0) ? 'ai' : 'review';
       return { id: id(), order: i, title, desc, aiTag };
     });
@@ -294,7 +310,7 @@ export default function Home() {
     if (sa == null && sb == null) return 0;
     if (sa == null) return 1;
     if (sb == null) return -1;
-    return sa - sb;
+    return sb - sa;
   });
   const updateIce = (taskId, field, value) => {
     setSession1((s) => ({
@@ -335,17 +351,38 @@ export default function Home() {
       extraB: track === 'B' ? (s.extraB || []).filter((t) => t.id !== taskId) : (s.extraB || []),
     }));
   };
-  const addIdea = () => {
-    setSession2((s) => ({ ...s, ideas: [...(s.ideas || []), { id: id(), title: '', asIs: '', toBe: '', taskType: 'new' }] }));
+  const registeredIdeas = session2.registeredIdeas || [];
+  const selectedIds = session2.selectedIds || [];
+  const registerIdea = (title, content) => {
+    if (!(title || '').trim()) return;
+    setSession2((s) => ({
+      ...s,
+      registeredIdeas: [...(s.registeredIdeas || []), { id: id(), title: (title || '').trim(), content: (content || '').trim() }],
+    }));
   };
-  const updateIdea = (ideaId, field, value) => {
-    setSession2((s) => ({ ...s, ideas: (s.ideas || []).map((i) => (i.id === ideaId ? { ...i, [field]: value } : i)) }));
+  const toggleIdeaSelected = (ideaId) => {
+    setSession2((s) => {
+      const ids = s.selectedIds || [];
+      const has = ids.includes(ideaId);
+      return { ...s, selectedIds: has ? ids.filter((id) => id !== ideaId) : [...ids, ideaId] };
+    });
   };
-  const delIdea = (ideaId) => {
-    setSession2((s) => ({ ...s, ideas: (s.ideas || []).filter((i) => i.id !== ideaId) }));
+  const moveSelectedToSession3 = () => {
+    const toAdd = registeredIdeas.filter((r) => selectedIds.includes(r.id)).map((r) => ({ id: r.id, title: r.title, desc: r.content || '' }));
+    if (toAdd.length === 0) { alert('세션 3으로 가져갈 항목을 1개 이상 선택해 주세요.'); return; }
+    setSession2((s) => ({
+      ...s,
+      extraB: [...(s.extraB || []), ...toAdd],
+      selectedIds: [],
+    }));
+    setPhase('session3');
   };
-  const addRecommendedToExtra = (item) => {
-    setSession2((s) => ({ ...s, extraB: [...(s.extraB || []), { id: id(), title: item.title || '', desc: item.desc || '' }] }));
+  const removeRegisteredIdea = (ideaId) => {
+    setSession2((s) => ({
+      ...s,
+      registeredIdeas: (s.registeredIdeas || []).filter((i) => i.id !== ideaId),
+      selectedIds: (s.selectedIds || []).filter((id) => id !== ideaId),
+    }));
   };
 
   const priorityRanks = session1.priorityRanks || {};
@@ -531,7 +568,7 @@ export default function Home() {
     const steps = (prework.workflowSteps || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0));
     return (
       <div className="app-shell">
-        <header className="app-header">
+        <header className="app-header app-header-sticky">
           <div className="app-header-left">
             {logoUrl && <img src={logoUrl} alt="" className="app-logo" />}
             <span className="app-title">롯데웰푸드 AI 전환 과제 설계</span>
@@ -542,14 +579,6 @@ export default function Home() {
           {preworkStep === 1 && <button type="button" className="btn btn-sm btn-primary" onClick={() => setPreworkStep(2)}>다음: 과제 후보 목록 →</button>}
           {preworkStep === 2 && <button type="button" className="btn btn-sm" onClick={() => setPreworkStep(3)}>다음: 질문하기 →</button>}
           {preworkStep === 3 && prework.workflowSteps?.length > 0 && prework.taskCandidates?.length > 0 && <button type="button" className="btn btn-primary" disabled={submitting} onClick={() => submitPreworkToServer()}>{submitting ? '제출 중…' : '사전과제 제출 → 세션 1'}</button>}
-          <span className="ph-sep" />
-          <button type="button" className="phase-pill ph-active">사전과제</button>
-          <span className="ph-sep" />
-          <button type="button" className="phase-pill" onClick={() => setPhase('session1')}>세션 1</button>
-          <span className="ph-sep" />
-          <button type="button" className="phase-pill" onClick={() => setPhase('session2')}>세션 2</button>
-          <span className="ph-sep" />
-          <button type="button" className="phase-pill" onClick={() => setPhase('session3')}>세션 3</button>
         </header>
         <main className="app-main">
           <div className="prework-layout">
@@ -579,10 +608,12 @@ export default function Home() {
                 <div className="section-block">
                   <p className="section-title">1단계: 워크플로우</p>
                   <p className="section-sub step-guide">{WORKFLOW_GUIDE}</p>
-                  <div className="wf-example" style={{ marginBottom: 12 }}>
+                  <div className="wf-example wf-example-markdown" style={{ marginBottom: 12 }}>
                     <strong>예시 (선택 영역 기준)</strong>
                     {workflowExample ? (
-                      <pre style={{ margin: '8px 0 0', whiteSpace: 'pre-wrap', fontSize: 11 }}>{workflowExample}</pre>
+                      <div className="wf-example-body">
+                        <ReactMarkdown>{workflowExample}</ReactMarkdown>
+                      </div>
                     ) : (
                       <button type="button" className="btn btn-sm" disabled={aiLoading} onClick={loadWorkflowExample} style={{ marginTop: 8 }}>{aiLoading ? '불러오는 중…' : '예시 불러오기'}</button>
                     )}
@@ -619,7 +650,24 @@ export default function Home() {
               {preworkStep === 2 && (
                 <div className="section-block">
                   <p className="section-title">2단계: 과제 후보</p>
-                  <p className="section-sub step-guide">AI 제안을 받거나 직접 과제를 추가해 주세요.</p>
+                  <p className="section-sub step-guide">앞서 작성한 워크플로우를 참고하여 AI 제안을 받거나 직접 과제를 추가해 주세요.</p>
+                  {(prework.workflowSteps || []).length > 0 && (
+                    <div className="workflow-flowchart">
+                      <p className="section-label">참고: 작성한 워크플로우</p>
+                      <div className="flowchart-steps">
+                        {(prework.workflowSteps || []).slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map((s, i) => (
+                          <div key={s.id} className="flowchart-step">
+                            <span className="flowchart-step-n">{i + 1}</span>
+                            <div className="flowchart-step-body">
+                              <strong>{s.title || '(제목 없음)'}</strong>
+                              {s.desc && <span className="flowchart-step-desc"> — {s.desc}</span>}
+                            </div>
+                            {i < (prework.workflowSteps?.length || 0) - 1 && <span className="flowchart-arrow">→</span>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <div className="ai-assist-box ai-box-task">
                     <button type="button" className="btn btn-sm btn-primary" disabled={aiLoading} onClick={() => callAi('task')}>{aiLoading ? '생성 중…' : 'AI 과제 제안 받기'}</button>
                     {aiType === 'task' && aiResult && <div className="result">{aiResult}</div>}
@@ -639,10 +687,6 @@ export default function Home() {
                       <button type="button" className="btn btn-sm" onClick={() => delTask(t.id)}>삭제</button>
                     </div>
                   ))}
-                  <div style={{ marginTop: 16 }}>
-                    <button type="button" className="btn btn-sm" onClick={() => setPreworkStep(1)}>← 워크플로우</button>
-                    <button type="button" className="btn btn-sm" style={{ marginLeft: 8 }} onClick={() => setPreworkStep(3)}>다음: 질문하기 →</button>
-                  </div>
                 </div>
               )}
 
@@ -652,9 +696,6 @@ export default function Home() {
                     <p className="section-title">3단계: 강사에게 질문</p>
                     <p className="section-sub step-guide">질문을 입력 후 제출하면 구글 시트에 저장됩니다.</p>
                     <QuestionSubmitForm onSubmit={submitQuestionOnly} submitting={submitting} submitted={questionSubmitted} />
-                  </div>
-                  <div style={{ marginTop: 16 }}>
-                    <button type="button" className="btn btn-sm" onClick={() => setPreworkStep(2)}>← 과제 후보</button>
                   </div>
                 </div>
               )}
@@ -685,23 +726,14 @@ export default function Home() {
   if (phase === 'session1') {
     return (
       <div className="app-shell">
-        <header className="app-header">
+        <header className="app-header app-header-sticky">
           <div className="app-header-left">
             {logoUrl && <img src={logoUrl} alt="" className="app-logo" />}
             <span className="app-title">롯데웰푸드 AI 전환 과제 설계</span>
           </div>
           <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>{department} · 세션 1</span>
           <div style={{ flex: 1 }} />
-          <button type="button" className="btn btn-sm" onClick={() => setPhase('session2')}>세션 2로 이동</button>
-          <button type="button" className="btn btn-primary" onClick={() => setPhase('session3')}>세션 3으로 이동</button>
-          <span className="ph-sep" />
-          <button type="button" className="phase-pill" onClick={() => setPhase('prework')}>사전과제</button>
-          <span className="ph-sep" />
-          <button type="button" className="phase-pill ph-active">세션 1</button>
-          <span className="ph-sep" />
-          <button type="button" className="phase-pill" onClick={() => setPhase('session2')}>세션 2</button>
-          <span className="ph-sep" />
-          <button type="button" className="phase-pill" onClick={() => setPhase('session3')}>세션 3</button>
+          <button type="button" className="btn btn-primary" onClick={() => setPhase('session2')}>다음: 세션 2로 이동</button>
         </header>
         <main className="app-main" style={{ padding: 20 }}>
           <div className="info-banner">
@@ -711,10 +743,11 @@ export default function Home() {
               <p className="body">본부(<strong>{department}</strong>) 내에서 제출된 사전과제를 검토하고, ICE 정량 평가 후 1~3순위를 부여하세요.</p>
             </div>
           </div>
-          <div className="section-block">
+          <div className="section-block session1-section">
             <h3>본부 내 제출된 사전과제 목록</h3>
-            <p className="session1-dept-note">같은 작성본부({department})에서 제출된 사전과제입니다. 여러 참가자가 제출한 주제를 검토할 수 있도록 목록으로 표시됩니다. 카드를 클릭하면 워크플로우·과제·질문을 펼쳐 볼 수 있습니다.</p>
-            {sharedPrework.length === 0 && <p className="section-sub">제출된 사전과제가 없습니다. 사전과제를 제출한 뒤 새로고침하세요.</p>}
+            {sharedPrework.length === 0 && (
+              <p className="section-sub">제출된 사전과제가 없습니다. <button type="button" className="btn btn-sm" onClick={() => { fetch(`/api/prework?department=${encodeURIComponent(department || '')}`).then((r) => r.json()).then((list) => setSharedPrework(Array.isArray(list) ? list : [])); }}>새로고침</button></p>
+            )}
             {sharedPrework.map((pw) => (
               <div key={pw.id} className={`shared-prework-card ${expandedPreworkId === pw.id ? 'expanded' : ''}`} onClick={() => setExpandedPreworkId(expandedPreworkId === pw.id ? null : pw.id)}>
                 <div className="shared-prework-head">
@@ -733,9 +766,9 @@ export default function Home() {
               </div>
             ))}
           </div>
-          <div className="section-block">
+          <div className="section-block session1-section session1-ice-section">
             <h3>ICE 정량 평가</h3>
-            <p className="section-sub">각 과제에 1~10점을 부여하고, 1·2·3순위를 선택하세요. ICE 점수 순으로 정렬됩니다.</p>
+            <p className="section-sub">각 과제에 1~10점을 부여하고, 1·2·3순위를 선택하세요. ICE 점수 높은 순으로 정렬됩니다.</p>
             <ul className="ice-criteria-list">
               <li><strong>전략 부합도</strong> — 임원진이 규명한 조직 문제를 해결하는가?</li>
               <li><strong>구현 가능성</strong> — 사내 보안·인프라 환경 내에서 구현 가능한가?</li>
@@ -797,105 +830,59 @@ export default function Home() {
 
   // ----- Session 2: 아이디어 발산 → AI 추천 → 선택
   if (phase === 'session2') {
-    const ideas = session2.ideas || [];
-    const recommended = session2.recommended || [];
-    const fetchIdeaRecommend = async () => {
-      if (!ideas.length) { alert('아이디어를 1개 이상 입력해 주세요.'); return; }
-      setAiLoading(true);
-      try {
-        const res = await fetch('/api/ai', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type: 'idea_recommend', ideas: ideas.map((i) => ({ title: i.title, asIs: i.asIs, toBe: i.toBe, taskType: i.taskType })) }),
-        });
-        const data = await res.json();
-        if (data.error) alert('추천 받기 실패: ' + data.error);
-        else if (data.recommended) setSession2((s) => ({ ...s, recommended: data.recommended }));
-        else if (data.text) {
-          const lines = (data.text || '').split('\n').filter((l) => l.trim());
-          const rec = lines.slice(0, 10).map((line) => ({ title: line.replace(/^\d+\.\s*/, '').trim(), desc: '' }));
-          setSession2((s) => ({ ...s, recommended: rec }));
-        }
-      } finally {
-        setAiLoading(false);
-      }
-    };
     return (
       <div className="app-shell">
-        <header className="app-header">
+        <header className="app-header app-header-sticky">
           <div className="app-header-left">
             {logoUrl && <img src={logoUrl} alt="" className="app-logo" />}
             <span className="app-title">롯데웰푸드 AI 전환 과제 설계</span>
           </div>
+          <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>{department} · 세션 2</span>
           <div style={{ flex: 1 }} />
           <button type="button" className="btn btn-primary" onClick={() => setPhase('session3')}>세션 3으로 이동</button>
-          <span className="ph-sep" />
-          <button type="button" className="phase-pill" onClick={() => setPhase('prework')}>사전과제</button>
-          <span className="ph-sep" />
-          <button type="button" className="phase-pill" onClick={() => setPhase('session1')}>세션 1</button>
-          <span className="ph-sep" />
-          <button type="button" className="phase-pill ph-active">세션 2</button>
-          <span className="ph-sep" />
-          <button type="button" className="phase-pill" onClick={() => setPhase('session3')}>세션 3</button>
         </header>
         <main className="app-main" style={{ padding: 20 }}>
           <div className="info-banner">
             <span className="icon">2</span>
             <div>
-              <p className="title">세션 2 — 직책자 관점 아이디어 도출</p>
-              <p className="body">고민 중인 아이디어를 적고 AI 추천을 받은 뒤, 과제로 선택할 수 있습니다.</p>
+              <p className="title">세션 2 — 아이디어 발산</p>
+              <p className="body">아이디어를 작성한 뒤 등록하고, 하단 목록에서 복수 선택하여 세션 3 과제로 진행할 수 있습니다.</p>
             </div>
           </div>
           <div className="section-block">
-            <h3>아이디어 발산</h3>
-            <p className="section-sub">아이디어 제목, AS-IS(불편한 점), TO-BE(바꾸고 싶은 점), 유형을 입력하세요.</p>
-            {ideas.map((i) => (
-              <div key={i.id} className="idea-card">
-                <input className="idea-title" placeholder="아이디어 제목" value={i.title || ''} onChange={(e) => updateIdea(i.id, 'title', e.target.value)} />
-                <label>AS-IS (어떤 점이 불편한가요?)</label>
-                <textarea placeholder="현재 불편한 점" value={i.asIs || ''} onChange={(e) => updateIdea(i.id, 'asIs', e.target.value)} rows={2} />
-                <label>TO-BE (어떻게 바꾸면 좋겠나요?)</label>
-                <textarea placeholder="원하는 변화" value={i.toBe || ''} onChange={(e) => updateIdea(i.id, 'toBe', e.target.value)} rows={2} />
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <label>과제 유형:</label>
-                  <select value={i.taskType || 'new'} onChange={(e) => updateIdea(i.id, 'taskType', e.target.value)}>
-                    <option value="expand">임원진 과제 범위 확장</option>
-                    <option value="new">신규 과제</option>
-                  </select>
-                  <button type="button" className="btn btn-sm" onClick={() => delIdea(i.id)}>삭제</button>
+            <h3>아이디어 작성</h3>
+            <p className="section-sub">제목과 내용을 입력한 뒤 등록 버튼을 눌러 하단 목록에 추가하세요.</p>
+            <div className="idea-card session2-draft">
+              <input className="idea-title" placeholder="아이디어 제목" value={session2DraftTitle} onChange={(e) => setSession2DraftTitle(e.target.value)} />
+              <textarea placeholder="내용 (AS-IS, TO-BE 등 자유롭게 작성)" value={session2DraftContent} onChange={(e) => setSession2DraftContent(e.target.value)} rows={4} style={{ width: '100%', padding: 8, marginTop: 8 }} />
+              <div style={{ marginTop: 12 }}>
+                <button type="button" className="btn btn-primary" onClick={() => { registerIdea(session2DraftTitle, session2DraftContent); setSession2DraftTitle(''); setSession2DraftContent(''); }}>등록</button>
+              </div>
+            </div>
+          </div>
+          <div className="section-block">
+            <h3>등록한 아이디어</h3>
+            <p className="section-sub">세션 3으로 가져갈 항목을 복수 선택한 뒤 「선택한 항목을 세션 3 과제로」를 누르세요.</p>
+            {registeredIdeas.length === 0 && <p className="section-sub">등록된 아이디어가 없습니다. 위에서 작성 후 등록해 주세요.</p>}
+            {registeredIdeas.map((r) => (
+              <div key={r.id} className="task-card session2-registered">
+                <label className="session2-check-wrap">
+                  <input type="checkbox" checked={selectedIds.includes(r.id)} onChange={() => toggleIdeaSelected(r.id)} />
+                  <span className="session2-check-label">선택</span>
+                </label>
+                <div style={{ flex: 1 }}>
+                  <p className="title">{r.title || '(제목 없음)'}</p>
+                  {r.content && <p className="desc">{r.content}</p>}
                 </div>
+                <button type="button" className="btn btn-sm" onClick={() => removeRegisteredIdea(r.id)}>삭제</button>
               </div>
             ))}
-            <div className="add-row" onClick={addIdea}>+ 아이디어 추가</div>
-            <button type="button" className="btn btn-primary" disabled={aiLoading || !ideas.length} onClick={fetchIdeaRecommend} style={{ marginTop: 12 }}>{aiLoading ? '추천 생성 중…' : 'AI 추천 받기'}</button>
+            {registeredIdeas.length > 0 && (
+              <div style={{ marginTop: 16 }}>
+                <button type="button" className="btn btn-primary" onClick={moveSelectedToSession3}>선택한 항목을 세션 3 과제로</button>
+              </div>
+            )}
           </div>
-          {recommended.length > 0 && (
-            <div className="section-block">
-              <h3>추천 아이디어</h3>
-              <p className="section-sub">선택한 항목은 세션 1·3에 반영됩니다.</p>
-              {recommended.map((r, idx) => (
-                <div key={idx} className="recommended-card">
-                  <p className="recommended-title">{r.title || '(제목 없음)'}</p>
-                  {r.desc && <p className="recommended-desc">{r.desc}</p>}
-                  <button type="button" className="btn btn-sm btn-primary" onClick={() => addRecommendedToExtra(r)}>선택</button>
-                </div>
-              ))}
-            </div>
-          )}
-          {(session2.extraB || []).length > 0 && (
-            <div className="section-block">
-              <h3>선택한 과제</h3>
-              {(session2.extraB || []).map((t) => (
-                <div key={t.id} className="task-card">
-                  <div style={{ flex: 1 }}>
-                    <p className="title">{t.title}</p>
-                    <p className="desc">{t.desc}</p>
-                  </div>
-                  <button type="button" className="btn btn-sm" onClick={() => delExtra('B', t.id)}>삭제</button>
-                </div>
-              ))}
-            </div>
-          )}
         </main>
       </div>
     );
@@ -903,14 +890,10 @@ export default function Home() {
 
   // ----- Session 3
   const defFields = [
-    { key: 'title', label: '과제명', type: 'text' },
-    { key: 'background', label: '배경 및 목표', type: 'textarea' },
-    { key: 'scope', label: '범위·수준', type: 'textarea' },
-    { key: 'workflowSummary', label: '관련 워크플로우 요약', type: 'textarea' },
-    { key: 'constraints', label: '제약·요건', type: 'textarea' },
-    { key: 'keyMan', label: 'Key Man·담당', type: 'text' },
-    { key: 'dataStrategy', label: '데이터 확보 전략', type: 'textarea' },
-    { key: 'securityNotes', label: '보안·인프라 메모', type: 'textarea' },
+    { key: 'reason', label: '선택한 주제가 반드시 개선되어야 할 이유는 무엇입니까?', type: 'textarea' },
+    { key: 'expectedChange', label: '개선되어야 하는 과업이 AI를 기반으로 어떻게 변화되길 기대하십니까?', type: 'textarea' },
+    { key: 'successCriteria', label: '이 문제가 AI를 기반으로 성공적으로 해소/생산성이 향상되었다고 인정 받기 위해, 달성되어야 하거나, 구현된 결과물에 반드시 고려되어야 할 것은 무엇입니까?', type: 'textarea' },
+    { key: 'implementationNotes', label: '구현 과정에서 구현자가 반드시 고려해야 할 사항은 무엇입니까?', type: 'textarea' },
   ];
   const wfStepsSorted = (prework.workflowSteps || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0));
   const wfSummary = wfStepsSorted.map((s) => s.title).join(' → ');
@@ -919,20 +902,15 @@ export default function Home() {
 
   return (
     <div className="app-shell">
-      <header className="app-header">
+      <header className="app-header app-header-sticky">
         <div className="app-header-left">
           {logoUrl && <img src={logoUrl} alt="" className="app-logo" />}
           <span className="app-title">롯데웰푸드 AI 전환 과제 설계</span>
         </div>
+        <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>{department} · 세션 3</span>
         <div style={{ flex: 1 }} />
         {session3SelectedTaskId && <button type="button" className="btn btn-sm" onClick={() => setSession3SelectedTaskId(null)}>← 목록으로</button>}
         <button type="button" className="btn btn-primary" onClick={() => window.print()}>인쇄 / PDF 저장</button>
-        <span className="ph-sep" />
-        <button type="button" className="phase-pill" onClick={() => setPhase('session1')}>세션 1</button>
-        <span className="ph-sep" />
-        <button type="button" className="phase-pill" onClick={() => setPhase('session2')}>세션 2</button>
-        <span className="ph-sep" />
-        <button type="button" className="phase-pill ph-active">세션 3</button>
       </header>
       <main className="app-main" style={{ padding: 20 }}>
         {!session3SelectedTaskId ? (
@@ -965,32 +943,37 @@ export default function Home() {
             if (!t) return <p className="section-sub">과제를 찾을 수 없습니다.</p>;
             const d = session3.definitions?.[t.id] || {};
             return (
-              <div className="section-block session3-def-view">
-                <h3>과제정의서: {t.title}</h3>
-                <div className="def-ref-block">
-                  <p className="section-label">참고: 임원진이 도출한 AX 전략</p>
-                  {strategyDetailOrder.filter((key) => strategyFull[key]).map((key) => (
-                    <div key={key} className="strategy-detail-card">
-                      <span className="strategy-detail-label">{key}</span>
-                      <span className="strategy-detail-value">{strategyFull[key]}</span>
-                    </div>
-                  ))}
-                </div>
-                <div className="def-ref-block">
-                  <p className="section-label">참고: 해당 과업의 전체 워크플로우</p>
-                  <pre className="wf-full-pre">{wfFullText}</pre>
-                </div>
-                <p className="section-label">과제정의서 작성 (실무 인계용)</p>
-                {defFields.map((f) => (
-                  <div key={f.key} style={{ marginBottom: 10 }}>
-                    <label>{f.label}</label>
-                    {f.type === 'textarea' ? (
-                      <textarea value={d[f.key] ?? (f.key === 'workflowSummary' ? wfSummary : '')} onChange={(e) => updateDef(t.id, f.key, e.target.value)} rows={3} />
-                    ) : (
-                      <input type="text" value={d[f.key] ?? (f.key === 'title' ? t.title : '')} onChange={(e) => updateDef(t.id, f.key, e.target.value)} />
-                    )}
+              <div className="session3-def-layout">
+                <div className="session3-def-main">
+                  <div className="section-block session3-def-view">
+                    <h3>과제정의서 작성 (실무 인계용): {t.title}</h3>
+                    {defFields.map((f) => (
+                      <div key={f.key} className="def-field-row">
+                        <label className="def-field-label">{f.label}</label>
+                        {f.type === 'textarea' ? (
+                          <textarea className="def-field-input def-field-textarea" value={d[f.key] ?? ''} onChange={(e) => updateDef(t.id, f.key, e.target.value)} rows={4} placeholder="내용을 입력하세요" />
+                        ) : (
+                          <input type="text" className="def-field-input" value={d[f.key] ?? ''} onChange={(e) => updateDef(t.id, f.key, e.target.value)} placeholder="내용을 입력하세요" />
+                        )}
+                      </div>
+                    ))}
                   </div>
-                ))}
+                </div>
+                <aside className="session3-def-sidebar">
+                  <div className="def-ref-block">
+                    <p className="section-label">참고: 임원진이 도출한 AX 전략</p>
+                    {strategyDetailOrder.filter((key) => strategyFull[key]).map((key) => (
+                      <div key={key} className="strategy-detail-card">
+                        <span className="strategy-detail-label">{key}</span>
+                        <span className="strategy-detail-value">{strategyFull[key]}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="def-ref-block">
+                    <p className="section-label">참고: 해당 과업의 전체 워크플로우</p>
+                    <pre className="wf-full-pre">{wfFullText}</pre>
+                  </div>
+                </aside>
               </div>
             );
           })()
