@@ -88,7 +88,7 @@
       var tagText = s.aiTag === 'review' ? '검토 필요' : 'AI 적용 가능';
       return '<div class="wf-card" data-wf-id="' + s.id + '">' +
         '<div class="step-n">' + (i + 1) + '</div>' +
-        '<div style="flex:1"><input type="text" class="wf-input-title" placeholder="단계 제목" value="' + escapeHtml(s.title || '') + '" data-id="' + s.id + '" data-field="title"/><input type="text" class="wf-input-desc" placeholder="설명" value="' + escapeHtml(s.desc || '') + '" data-id="' + s.id + '" data-field="desc"/></div>' +
+        '<div style="flex:1"><input type="text" class="wf-input-title" placeholder="단계 제목 (예: 외부 시장 데이터 수집)" value="' + escapeHtml(s.title || '') + '" data-id="' + s.id + '" data-field="title"/><textarea class="wf-input-desc" placeholder="이 단계에서 하는 일, 사용 데이터/시스템, 유의사항 등을 자유롭게 적어주세요." data-id="' + s.id + '" data-field="desc">' + escapeHtml(s.desc || '') + '</textarea></div>' +
         '<span class="tag ' + tag + '">' + tagText + '</span>' +
         '<button type="button" class="btn btn-sm" data-action="toggle-wf" data-id="' + s.id + '">태그</button>' +
         '<button type="button" class="btn btn-sm" data-action="del-wf" data-id="' + s.id + '">삭제</button></div>';
@@ -112,6 +112,7 @@
         if (s) { s[inp.getAttribute('data-field')] = inp.value; saveState(); }
       });
     });
+    enhanceAutoResizeTextareas(container);
   }
 
   function renderTaskCandidateList() {
@@ -582,6 +583,11 @@
     document.getElementById('btnSubmitPrework').addEventListener('click', goNextFromPrework);
     var btnBottom = document.getElementById('btnSubmitPreworkBottom');
     if (btnBottom) btnBottom.addEventListener('click', goNextFromPrework);
+    var btnPreOnly = document.getElementById('btnPreworkOnly');
+    if (btnPreOnly) btnPreOnly.addEventListener('click', function () {
+      saveState();
+      alert('사전과제 내용이 이 브라우저에 저장되었습니다.\n\n본 워크숍 세션 1에서, 지금 작성한 워크플로우와 과제 후보를 기반으로 실행 계획을 함께 수립하게 됩니다.\n이제 창을 닫으셔도 됩니다.');
+    });
     document.querySelectorAll('.track-tab').forEach(function (t) {
       t.addEventListener('click', function () {
         var track = this.getAttribute('data-track');

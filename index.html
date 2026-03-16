@@ -53,10 +53,24 @@
               <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
                 <div>
                   <p class="section-title">워크플로우 분석</p>
-                  <p class="section-sub" id="preworkAreaSub">영역을 선택하면 여기에 표시됩니다 — 현재 우리 팀의 실제 업무 흐름을 단계별로 입력하세요</p>
+                  <p class="section-sub" id="preworkAreaSub">영역을 선택하면 여기에 표시됩니다 — 아래 예시를 참고해, 우리 팀의 실제 업무 단계를 <strong>텍스트로 직접 입력</strong>해주세요.</p>
                 </div>
                 <button type="button" class="btn btn-sm" id="addWfStep">단계 추가</button>
               </div>
+              <details class="wf-example">
+                <summary>예시 워크플로우 살펴보기</summary>
+                <div class="wf-example-body">
+                  <p class="wf-example-title">예) 외부·사내 데이터 기반 마케팅</p>
+                  <ol class="wf-example-list">
+                    <li><strong>외부 시장/고객 데이터 수집</strong> — 닐슨·유로모니터 등 외부 소스에서 정기 데이터 다운로드</li>
+                    <li><strong>사내 매출·재고 데이터 취합</strong> — SAP/BW 등 사내 시스템에서 실적 데이터 추출</li>
+                    <li><strong>데이터 정합성 검증 및 보정</strong> — 누락/이상치 점검 및 정제</li>
+                    <li><strong>타겟 세그먼트 정의</strong> — 고객 속성·행태 기반 세그먼트 설정</li>
+                    <li><strong>캠페인 기획·성과 분석</strong> — KPI 기반 캠페인 운영 및 리포팅</li>
+                  </ol>
+                  <p class="wf-example-hint">※ 각 단계에 대해 “무엇을, 어떤 순서로, 어떤 데이터/시스템을 쓰는지”를 적어주시면 됩니다. 프롬프트가 아니라 <strong>우리 팀의 실제 업무 설명</strong>을 적는 칸입니다.</p>
+                </div>
+              </details>
               <div id="workflowList"></div>
               <div class="add-row" id="addWfRow">+ 단계 추가하기</div>
             </div>
@@ -81,8 +95,16 @@
               </div>
             </div>
             <div class="section-block no-print" id="preworkBottomNav">
-              <div style="display:flex; justify-content:flex-end; gap:8px;">
-                <button type="button" class="btn btn-primary" id="btnSubmitPreworkBottom">워크플로우 분석 완료 · 다음 단계 →</button>
+              <div class="prework-bottom-layout">
+                <div class="prework-bottom-note">
+                  <p class="section-title">사전과제 이후 흐름</p>
+                  <p class="section-sub" style="margin-bottom:4px;">① 사전과제로만 수행하는 경우: 작성 내용을 저장한 뒤 브라우저를 닫으면, 본 워크숍 세션1에서 이 내용을 기반으로 실행 계획을 수립합니다.</p>
+                  <p class="section-sub">② 워크숍 중에 작성하는 경우: 아래 버튼을 눌러 바로 <strong>세션 1 (워크플로우 공유·ICE 평가)</strong> 단계로 이동합니다.</p>
+                </div>
+                <div class="prework-bottom-actions">
+                  <button type="button" class="btn" id="btnPreworkOnly">사전과제만 저장하고 종료하기</button>
+                  <button type="button" class="btn btn-primary" id="btnSubmitPreworkBottom">세션 1으로 이동 →</button>
+                </div>
               </div>
             </div>
           </div>
