@@ -43,11 +43,11 @@ export default function Home() {
   });
   const [session1, setSession1] = useState(() => {
     const local = loadLocal();
-    return local?.session1 || { evaluations: {}, confirmedIds: [] };
+    return local?.session1 || { evaluations: {}, priorityRanks: {} };
   });
   const [session2, setSession2] = useState(() => {
     const local = loadLocal();
-    return local?.session2 || { track: 'A', extraA: [], extraB: [] };
+    return local?.session2 || { ideas: [], recommended: [], extraB: [] };
   });
   const [session3, setSession3] = useState(() => {
     const local = loadLocal();
@@ -64,7 +64,6 @@ export default function Home() {
   const [aiTaskInput, setAiTaskInput] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [expandedPreworkId, setExpandedPreworkId] = useState(null);
-  const [session1Step, setSession1Step] = useState('list'); // list | ice
   const [agreedTasks, setAgreedTasks] = useState(() => {
     const local = loadLocal();
     return local?.agreedTasks || [];
@@ -73,7 +72,8 @@ export default function Home() {
   const [preworkStep, setPreworkStep] = useState(1); // 1: 워크플로우, 2: 과제 후보, 3: 질문
   const [workflowExample, setWorkflowExample] = useState(''); // 선택 영역별 예시 (API로 로드)
   const [questionSubmitted, setQuestionSubmitted] = useState(false); // 질문 제출 후 "등록되었습니다" 표시
-  const [detailModalStrategy, setDetailModalStrategy] = useState(null); // 리뷰 단계에서 "더 읽어보기"로 연 상세 모달
+  const [detailModalStrategy, setDetailModalStrategy] = useState(null); // 리뷰/사전과제에서 전략 상세 모달
+  const [session3SelectedTaskId, setSession3SelectedTaskId] = useState(null); // 세션3에서 선택한 과제(정의서 보기)
 
   useEffect(() => {
     fetch('/api/logo')
@@ -180,6 +180,21 @@ export default function Home() {
       setSubmitting(false);
     }
   };
+  const applySplitFromText = (text) => {
+    const lines = (text || '').split('\n').filter((l) => /^\d+\./.test(l.trim()));
+    const newSteps = lines.map((line, i) => {
+      const clean = line.replace(/^\d+\.\s*/, '').trim();
+      const dash = clean.indexOf(' — ');
+      const title = dash >= 0 ? clean.substring(0, dash).trim() : clean;
+      const rest = dash >= 0 ? clean.substring(dash + 3).trim() : '';
+      const paren = rest.lastIndexOf('(');
+      const desc = paren >= 0 ? rest.substring(0, paren).trim() : rest;
+      const aiTag = (rest.indexOf('AI 적용 가능') >= 0) ? 'ai' : 'review';
+      return { id: id(), order: i, title, desc, aiTag };
+    });
+    setPrework((p) => ({ ...p, workflowSteps: newSteps }));
+  };
+
   const callAi = async (type) => {
     const t = type || aiType;
     setAiType(t);
@@ -195,7 +210,12 @@ export default function Home() {
       });
       const data = await res.json();
       if (data.error) setAiResult('오류: ' + data.error);
-      else setAiResult(data.text || '');
+      else {
+        if (t === 'workflow_split' && data.text) {
+          applySplitFromText(data.text);
+          setAiResult('');
+        } else setAiResult(data.text || '');
+      }
     } catch (e) {
       setAiResult('오류: ' + e.message);
     } finally {
@@ -259,23 +279,36 @@ export default function Home() {
       return next;
     });
   };
-  const tasksForIce = agreedTasks.length > 0 ? agreedTasks : [
+  const tasksForIceRaw = agreedTasks.length > 0 ? agreedTasks : [
     ...(prework.taskCandidates || []),
-    ...(session2.extraA || []).map((t) => ({ ...t, source: 'extraA' })),
     ...(session2.extraB || []).map((t) => ({ ...t, source: 'extraB' })),
   ];
+  const iceScoreForTask = (t) => iceScore(session1.evaluations?.[t.id]);
+  const tasksForIce = [...tasksForIceRaw].sort((a, b) => {
+    const sa = iceScoreForTask(a);
+    const sb = iceScoreForTask(b);
+    if (sa == null && sb == null) return 0;
+    if (sa == null) return 1;
+    if (sb == null) return -1;
+    return sa - sb;
+  });
   const updateIce = (taskId, field, value) => {
     setSession1((s) => ({
       ...s,
       evaluations: { ...(s.evaluations || {}), [taskId]: { ...(s.evaluations?.[taskId] || {}), [field]: value === '' ? undefined : Number(value) } },
     }));
   };
-  const toggleConfirm = (taskId) => {
+  const setPriorityRank = (taskId, rank) => {
     setSession1((s) => {
-      const ids = s.confirmedIds || [];
-      const idx = ids.indexOf(taskId);
-      const next = idx >= 0 ? ids.filter((_, i) => i !== idx) : [...ids, taskId];
-      return { ...s, confirmedIds: next };
+      const prev = s.priorityRanks || {};
+      if (rank === '') {
+        const next = { ...prev }; delete next[taskId]; return { ...s, priorityRanks: next };
+      }
+      const num = Number(rank);
+      const next = { ...prev };
+      Object.keys(next).forEach((id) => { if (next[id] === num && id !== taskId) delete next[id]; });
+      next[taskId] = num;
+      return { ...s, priorityRanks: next };
     });
   };
   const iceScore = (ev) => {
@@ -302,15 +335,23 @@ export default function Home() {
       extraB: track === 'B' ? (s.extraB || []).filter((t) => t.id !== taskId) : (s.extraB || []),
     }));
   };
+  const addIdea = () => {
+    setSession2((s) => ({ ...s, ideas: [...(s.ideas || []), { id: id(), title: '', asIs: '', toBe: '', taskType: 'new' }] }));
+  };
+  const updateIdea = (ideaId, field, value) => {
+    setSession2((s) => ({ ...s, ideas: (s.ideas || []).map((i) => (i.id === ideaId ? { ...i, [field]: value } : i)) }));
+  };
+  const delIdea = (ideaId) => {
+    setSession2((s) => ({ ...s, ideas: (s.ideas || []).filter((i) => i.id !== ideaId) }));
+  };
+  const addRecommendedToExtra = (item) => {
+    setSession2((s) => ({ ...s, extraB: [...(s.extraB || []), { id: id(), title: item.title || '', desc: item.desc || '' }] }));
+  };
 
+  const priorityRanks = session1.priorityRanks || {};
   const finalTasks = (() => {
-    const conf = session1.confirmedIds || [];
-    const fromConf = conf.map((id) => tasksForIce.find((t) => t.id === id)).filter(Boolean);
-    const restA = (session2.extraA || []).filter((t) => !conf.includes(t.id));
-    const restB = (session2.extraB || []).filter((t) => !conf.includes(t.id));
-    const list = [...fromConf, ...restA.map((t) => ({ ...t, source: 'extraA' })), ...restB.map((t) => ({ ...t, source: 'extraB' }))];
-    if (list.length === 0 && (prework.taskCandidates || []).length > 0) return prework.taskCandidates.map((t) => ({ ...t, source: 'exec' }));
-    return list;
+    const ranked = tasksForIceRaw.filter((t) => priorityRanks[t.id] != null).sort((a, b) => (priorityRanks[a.id] || 99) - (priorityRanks[b.id] || 99));
+    return ranked.length > 0 ? ranked : [];
   })();
 
   const updateDef = (taskId, field, value) => {
@@ -355,9 +396,31 @@ export default function Home() {
     );
   }
 
-  // ----- Strategy review: 카드 뉴스 가로 배치, 더 읽어보기 → 모달, 다음 단계 버튼 상단 우측
   const strategyDetailOrder = ['AI 적용 기대영역', 'AI 적용 기대이유', '기대하는 변화의 모습', '요약제목', '요약설명', '수행 조직', '구현 간 고려사항'];
   const strategyDetailExclude = ['작성본부', '핵심 한 줄 요약', 'id', '_G열'];
+  const renderStrategyDetailCards = (s) => {
+    if (!s) return null;
+    const ordered = strategyDetailOrder.filter((key) => s[key] != null && String(s[key]).trim() !== '');
+    const rest = Object.keys(s).filter((k) => !strategyDetailOrder.includes(k) && !strategyDetailExclude.includes(k) && s[k] != null && String(s[k]).trim() !== '');
+    return (
+      <>
+        {ordered.map((key) => (
+          <div key={key} className="strategy-detail-card">
+            <span className="strategy-detail-label">{key}</span>
+            <span className="strategy-detail-value">{s[key]}</span>
+          </div>
+        ))}
+        {rest.map((key) => (
+          <div key={key} className="strategy-detail-card">
+            <span className="strategy-detail-label">{key}</span>
+            <span className="strategy-detail-value">{s[key]}</span>
+          </div>
+        ))}
+      </>
+    );
+  };
+
+  // ----- Strategy review: 카드 뉴스 가로 배치, 더 읽어보기 → 모달
   if (phase === 'review') {
     const currentViewDept = viewDepartment || department;
     const listForView = (strategies.strategies || []).filter((s) => (s.작성본부 || '').trim() === currentViewDept);
@@ -377,26 +440,6 @@ export default function Home() {
       setSelectedStrategy(s);
       setPhase('prework');
     };
-    const renderDetailCards = (s) => {
-      const ordered = strategyDetailOrder.filter((key) => s[key] != null && String(s[key]).trim() !== '');
-      const rest = Object.keys(s).filter((k) => !strategyDetailOrder.includes(k) && !strategyDetailExclude.includes(k) && s[k] != null && String(s[k]).trim() !== '');
-      return (
-        <>
-          {ordered.map((key) => (
-            <div key={key} className="strategy-detail-card">
-              <span className="strategy-detail-label">{key}</span>
-              <span className="strategy-detail-value">{s[key]}</span>
-            </div>
-          ))}
-          {rest.map((key) => (
-            <div key={key} className="strategy-detail-card">
-              <span className="strategy-detail-label">{key}</span>
-              <span className="strategy-detail-value">{s[key]}</span>
-            </div>
-          ))}
-        </>
-      );
-    };
     return (
       <div className="app-shell">
         <header className="app-header app-header-review">
@@ -407,21 +450,13 @@ export default function Home() {
           <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>{participantName || '참가자'} · {department}</span>
           <div style={{ flex: 1 }} />
           <button type="button" className="btn btn-sm" onClick={() => setPhase('entry')}>본부/이름 변경</button>
-          <button
-            type="button"
-            className="btn btn-primary btn-next-step"
-            disabled={!selectedStrategy}
-            onClick={() => goToPrework()}
-          >
-            선택한 전략으로 사전과제 진행 →
-          </button>
         </header>
         <main className="app-main review-main" style={{ padding: 20 }}>
           <div className="info-banner">
             <span className="icon">i</span>
             <div>
               <p className="title">임원진이 도출한 AX 전략</p>
-              <p className="body">카드에서 <strong>더 읽어보기</strong>로 상세를 보고, <strong>본인 본부({department})</strong> 과제는 「이 전략으로 진행」을 눌러 선택한 뒤 상단 버튼으로 다음 단계로 이동하세요.</p>
+              <p className="body">임원진이 도출한 AX 전략 중 하나를 선택해 주세요! 도출된 전략을 살펴보고, 우리 팀에서 구체화하고 싶은 주제를 선택하여 다음 단계를 진행해 주세요.</p>
             </div>
           </div>
           <div className="view-dept-wrap">
@@ -439,17 +474,15 @@ export default function Home() {
               {listForView.map((s) => {
                 const cardTitle = (s.요약제목 || s['AI 적용 기대영역'] || s.제목 || s['핵심 한 줄 요약'] || '').trim() || '(제목 없음)';
                 const cardDesc = (s._G열 || s.요약설명 || s.리스트설명 || s.내용 || '').trim();
-                const isSelected = selectedStrategy?.id === s.id;
                 const isMyDept = (s.작성본부 || '').trim() === (department || '').trim();
                 return (
-                  <div key={s.id} className={`strategy-card-news-item ${isSelected ? 'sel' : ''}`}>
-                    <div className="card-news-visual" />
+                  <div key={s.id} className="strategy-card-news-item">
                     <div className="card-news-body">
                       <p className="card-news-title">{cardTitle}</p>
-                      {cardDesc && <p className="card-news-desc">{cardDesc.slice(0, 80)}{cardDesc.length > 80 ? '…' : ''}</p>}
+                      {cardDesc && <p className="card-news-desc">{cardDesc}</p>}
                       <button type="button" className="btn btn-card-read" onClick={(e) => { e.stopPropagation(); setDetailModalStrategy(s); }}>더 읽어보기</button>
                       {isMyDept && (
-                        <button type="button" className="btn btn-card-select" onClick={(e) => { e.stopPropagation(); setSelectedStrategy(isSelected ? null : s); }}>{isSelected ? '✓ 선택됨' : '이 전략으로 진행'}</button>
+                        <button type="button" className="btn btn-card-select" onClick={(e) => { e.stopPropagation(); goToPrework(s); }}>이 전략으로 진행</button>
                       )}
                     </div>
                   </div>
@@ -466,14 +499,14 @@ export default function Home() {
                 <h3 className="modal-title">{detailModalStrategy.요약제목 || detailModalStrategy['AI 적용 기대영역'] || detailModalStrategy.제목 || '(제목 없음)'}</h3>
                 <button type="button" className="modal-close" onClick={() => setDetailModalStrategy(null)} aria-label="닫기">×</button>
               </div>
-              <div className="modal-body strategy-detail-cards">
-                {renderDetailCards(detailModalStrategy)}
+              <div className="modal-body strategy-detail-cards strategy-detail-modal-body">
+                {renderStrategyDetailCards(detailModalStrategy)}
               </div>
               <div className="modal-footer">
                 {(detailModalStrategy.작성본부 || '').trim() === (department || '').trim() ? (
-                  <button type="button" className="btn btn-primary" onClick={() => goToPrework(detailModalStrategy)}>이 전략으로 사전과제 진행 →</button>
+                  <button type="button" className="btn btn-primary" onClick={() => goToPrework(detailModalStrategy)}>이 전략으로 진행 →</button>
                 ) : (
-                  <p className="modal-footer-note">본인 본부 과제만 사전과제로 선택할 수 있습니다.</p>
+                  <p className="modal-footer-note">본인 본부 과제만 진행할 수 있습니다.</p>
                 )}
                 <button type="button" className="btn btn-sm" onClick={() => setDetailModalStrategy(null)}>닫기</button>
               </div>
@@ -484,25 +517,18 @@ export default function Home() {
     );
   }
 
+  const reorderWfStep = (fromIndex, toIndex) => {
+    const steps = (prework.workflowSteps || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0));
+    if (toIndex < 0 || toIndex >= steps.length) return;
+    const [moved] = steps.splice(fromIndex, 1);
+    steps.splice(toIndex, 0, moved);
+    const updated = steps.map((s, i) => ({ ...s, order: i }));
+    setPrework((p) => ({ ...p, workflowSteps: updated }));
+  };
+
   // ----- Prework (단계: 1 워크플로우, 2 과제 후보, 3 질문하기)
   if (phase === 'prework') {
     const steps = (prework.workflowSteps || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0));
-    const applySplitResult = () => {
-      if (!aiResult || aiType !== 'workflow_split') return;
-      const lines = aiResult.split('\n').filter((l) => /^\d+\./.test(l.trim()));
-      const newSteps = lines.map((line, i) => {
-        const clean = line.replace(/^\d+\.\s*/, '').trim();
-        const dash = clean.indexOf(' — ');
-        const title = dash >= 0 ? clean.substring(0, dash).trim() : clean;
-        const rest = dash >= 0 ? clean.substring(dash + 3).trim() : '';
-        const paren = rest.lastIndexOf('(');
-        const desc = paren >= 0 ? rest.substring(0, paren).trim() : rest;
-        const aiTag = (rest.indexOf('AI 적용 가능') >= 0) ? 'ai' : 'review';
-        return { id: id(), order: i, title, desc, aiTag };
-      });
-      setPrework((p) => ({ ...p, workflowSteps: newSteps }));
-      setAiResult('');
-    };
     return (
       <div className="app-shell">
         <header className="app-header">
@@ -512,6 +538,11 @@ export default function Home() {
           </div>
           <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>{department} · 사전과제</span>
           <div style={{ flex: 1 }} />
+          {preworkStep > 1 && <button type="button" className="btn btn-sm" onClick={() => setPreworkStep(preworkStep - 1)}>← 이전 단계</button>}
+          {preworkStep === 1 && <button type="button" className="btn btn-sm btn-primary" onClick={() => setPreworkStep(2)}>다음: 과제 후보 목록 →</button>}
+          {preworkStep === 2 && <button type="button" className="btn btn-sm" onClick={() => setPreworkStep(3)}>다음: 질문하기 →</button>}
+          {preworkStep === 3 && prework.workflowSteps?.length > 0 && prework.taskCandidates?.length > 0 && <button type="button" className="btn btn-primary" disabled={submitting} onClick={() => submitPreworkToServer()}>{submitting ? '제출 중…' : '사전과제 제출 → 세션 1'}</button>}
+          <span className="ph-sep" />
           <button type="button" className="phase-pill ph-active">사전과제</button>
           <span className="ph-sep" />
           <button type="button" className="phase-pill" onClick={() => setPhase('session1')}>세션 1</button>
@@ -524,8 +555,9 @@ export default function Home() {
           <div className="prework-layout">
             <aside className="prework-side">
               <p className="section-label">선택한 AX 전략</p>
-              <div className="strategy-card sel" style={{ cursor: 'default' }}>
+              <div className="strategy-card strategy-card-clickable sel" style={{ cursor: 'pointer' }} onClick={() => prework.strategyFull && setDetailModalStrategy(prework.strategyFull)} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && prework.strategyFull && setDetailModalStrategy(prework.strategyFull)}>
                 <p className="one-liner">{prework.strategyTitle?.slice(0, 60) || '—'}{(prework.strategyTitle?.length || 0) > 60 ? '…' : ''}</p>
+                <p className="section-sub" style={{ marginTop: 4 }}>클릭 시 상세 보기</p>
               </div>
               <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--color-border-tertiary)' }}>
                 <p className="section-label">단계</p>
@@ -557,19 +589,15 @@ export default function Home() {
                   </div>
                   <div className="ai-assist-box ai-box-split">
                     <textarea placeholder="생각하시는 업무의 흐름을 작성해 주세요" value={aiSplitInput} onChange={(e) => setAiSplitInput(e.target.value)} rows={4} style={{ width: '100%' }} />
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      <button type="button" className="btn btn-sm btn-primary" disabled={aiLoading} onClick={() => callAi('workflow_split')}>{aiLoading ? '처리 중…' : '단계로 쪼개기'}</button>
-                      {aiResult && aiType === 'workflow_split' && <button type="button" className="btn btn-sm" onClick={applySplitResult}>결과 반영</button>}
-                    </div>
-                    {aiResult && aiType === 'workflow_split' && <div className="result" style={{ marginTop: 8 }}>{aiResult}</div>}
+                    <button type="button" className="btn btn-sm btn-primary" disabled={aiLoading} onClick={() => callAi('workflow_split')}>{aiLoading ? '처리 중…' : '단계로 쪼개기'}</button>
                   </div>
-                  <p className="section-label" style={{ marginTop: 16 }}>워크플로우 단계</p>
+                  <p className="section-label" style={{ marginTop: 16 }}>워크플로우 단계 (드래그하여 순서 변경)</p>
                   {steps.map((s, i) => (
-                    <div key={s.id} className="wf-card">
-                      <div className="step-n">{i + 1}</div>
-                      <div style={{ flex: 1 }}>
+                    <div key={s.id} className="wf-card wf-card-draggable" draggable onDragStart={(e) => { e.dataTransfer.setData('text/plain', i); }} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); const from = parseInt(e.dataTransfer.getData('text/plain'), 10); if (!isNaN(from)) reorderWfStep(from, i); }}>
+                      <div className="step-n wf-drag-handle" title="드래그하여 순서 변경">⋮⋮</div>
+                      <div className="wf-card-fields">
                         <input className="wf-input-title" placeholder="단계 제목" value={s.title || ''} onChange={(e) => updateWf(s.id, 'title', e.target.value)} />
-                        <input className="wf-input-desc" placeholder="설명" value={s.desc || ''} onChange={(e) => updateWf(s.id, 'desc', e.target.value)} />
+                        <textarea className="wf-input-desc wf-input-desc-area" placeholder="설명" value={s.desc || ''} onChange={(e) => updateWf(s.id, 'desc', e.target.value)} rows={2} />
                       </div>
                       <div className="wf-tag-choice">
                         <button type="button" className={`wf-tag-opt wf-tag-ai ${s.aiTag === 'ai' ? 'active' : ''}`} onClick={() => updateWf(s.id, 'aiTag', 'ai')} title="AI 적용 영역">
@@ -585,31 +613,25 @@ export default function Home() {
                     </div>
                   ))}
                   <div className="add-row" onClick={addWfStep}>+ 단계 추가하기</div>
-                  <button type="button" className="btn btn-sm" style={{ marginTop: 12 }} onClick={() => setPreworkStep(2)}>다음: 과제 후보 목록 →</button>
                 </div>
               )}
 
               {preworkStep === 2 && (
                 <div className="section-block">
                   <p className="section-title">2단계: 과제 후보</p>
-                  <p className="section-sub step-guide">상위 과제(전체 흐름)·하위 과제(단계별)를 구분해 적어 주세요. AI 제안을 쓰거나 직접 추가하세요.</p>
+                  <p className="section-sub step-guide">AI 제안을 받거나 직접 과제를 추가해 주세요.</p>
                   <div className="ai-assist-box ai-box-task">
                     <button type="button" className="btn btn-sm btn-primary" disabled={aiLoading} onClick={() => callAi('task')}>{aiLoading ? '생성 중…' : 'AI 과제 제안 받기'}</button>
                     {aiType === 'task' && aiResult && <div className="result">{aiResult}</div>}
                   </div>
                   <div className="task-add-buttons">
-                    <button type="button" className="btn btn-task-add btn-task-high" onClick={() => addTask('high')}>
-                      <span className="btn-task-add-icon">↑</span>
-                      <span>상위 과제 추가</span>
-                    </button>
-                    <button type="button" className="btn btn-task-add btn-task-low" onClick={() => addTask('low')}>
-                      <span className="btn-task-add-icon">↓</span>
-                      <span>하위 과제 추가</span>
+                    <button type="button" className="btn btn-task-add" onClick={() => addTask('low')}>
+                      <span className="btn-task-add-icon">+</span>
+                      <span>과제 추가</span>
                     </button>
                   </div>
                   {(prework.taskCandidates || []).map((t) => (
-                    <div key={t.id} className={`task-card task-level-${t.level || 'low'}`}>
-                      <span className={`task-level-badge ${(t.level || 'low') === 'high' ? 'level-high' : 'level-low'}`}>{(t.level || 'low') === 'high' ? '상위' : '하위'}</span>
+                    <div key={t.id} className="task-card">
                       <div style={{ flex: 1 }}>
                         <input className="task-input-title" placeholder="과제 제목" value={t.title || ''} onChange={(e) => updateTask(t.id, 'title', e.target.value)} />
                         <input className="task-input-desc" placeholder="설명" value={t.desc || ''} onChange={(e) => updateTask(t.id, 'desc', e.target.value)} />
@@ -617,18 +639,9 @@ export default function Home() {
                       <button type="button" className="btn btn-sm" onClick={() => delTask(t.id)}>삭제</button>
                     </div>
                   ))}
-                  <div style={{ marginTop: 20, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <div style={{ marginTop: 16 }}>
                     <button type="button" className="btn btn-sm" onClick={() => setPreworkStep(1)}>← 워크플로우</button>
-                    <button type="button" className="btn btn-sm" onClick={() => setPreworkStep(3)}>다음: 질문하기 →</button>
-                    <button className="btn btn-primary" disabled={submitting || !prework.workflowSteps?.length || !prework.taskCandidates?.length} onClick={() => {
-                      if (!prework.workflowSteps?.length || !prework.taskCandidates?.length) {
-                        alert('워크플로우 단계와 과제 후보를 각각 1개 이상 입력해 주세요.');
-                        return;
-                      }
-                      submitPreworkToServer();
-                    }}>
-                      {submitting ? '제출 중…' : '사전과제 제출 → 세션 1'}
-                    </button>
+                    <button type="button" className="btn btn-sm" style={{ marginLeft: 8 }} onClick={() => setPreworkStep(3)}>다음: 질문하기 →</button>
                   </div>
                 </div>
               )}
@@ -642,17 +655,28 @@ export default function Home() {
                   </div>
                   <div style={{ marginTop: 16 }}>
                     <button type="button" className="btn btn-sm" onClick={() => setPreworkStep(2)}>← 과제 후보</button>
-                    {prework.workflowSteps?.length > 0 && prework.taskCandidates?.length > 0 && (
-                      <button className="btn btn-primary" style={{ marginLeft: 8 }} disabled={submitting} onClick={() => submitPreworkToServer()}>
-                        {submitting ? '제출 중…' : '사전과제 제출 → 세션 1'}
-                      </button>
-                    )}
                   </div>
                 </div>
               )}
             </div>
           </div>
         </main>
+        {detailModalStrategy && phase === 'prework' && (
+          <div className="modal-overlay" onClick={() => setDetailModalStrategy(null)}>
+            <div className="modal-content strategy-detail-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h3 className="modal-title">{detailModalStrategy.요약제목 || detailModalStrategy['AI 적용 기대영역'] || detailModalStrategy.제목 || '(제목 없음)'}</h3>
+                <button type="button" className="modal-close" onClick={() => setDetailModalStrategy(null)} aria-label="닫기">×</button>
+              </div>
+              <div className="modal-body strategy-detail-cards strategy-detail-modal-body">
+                {renderStrategyDetailCards(detailModalStrategy)}
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-sm" onClick={() => setDetailModalStrategy(null)}>닫기</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -668,6 +692,9 @@ export default function Home() {
           </div>
           <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>{department} · 세션 1</span>
           <div style={{ flex: 1 }} />
+          <button type="button" className="btn btn-sm" onClick={() => setPhase('session2')}>세션 2로 이동</button>
+          <button type="button" className="btn btn-primary" onClick={() => setPhase('session3')}>세션 3으로 이동</button>
+          <span className="ph-sep" />
           <button type="button" className="phase-pill" onClick={() => setPhase('prework')}>사전과제</button>
           <span className="ph-sep" />
           <button type="button" className="phase-pill ph-active">세션 1</button>
@@ -681,17 +708,17 @@ export default function Home() {
             <span className="icon">1</span>
             <div>
               <p className="title">세션 1 — 워크플로우 기반 실행 가능 과제로 전환</p>
-              <p className="body">본부(<strong>{department}</strong>) 내에서 작성된 사전과제를 살펴보고, 과제 후보를 ICE로 평가한 뒤 구현 주제를 확정하세요.</p>
+              <p className="body">본부(<strong>{department}</strong>) 내에서 제출된 사전과제를 검토하고, ICE 정량 평가 후 1~3순위를 부여하세요.</p>
             </div>
           </div>
           <div className="section-block">
-            <h3>본부 내 사전과제 공유</h3>
-            <p className="session1-dept-note">같은 작성본부({department}) 제출 목록입니다. 카드를 클릭하면 워크플로우·과제 목록·질문을 펼쳐 볼 수 있습니다.</p>
+            <h3>본부 내 제출된 사전과제 목록</h3>
+            <p className="session1-dept-note">같은 작성본부({department})에서 제출된 사전과제입니다. 여러 참가자가 제출한 주제를 검토할 수 있도록 목록으로 표시됩니다. 카드를 클릭하면 워크플로우·과제·질문을 펼쳐 볼 수 있습니다.</p>
             {sharedPrework.length === 0 && <p className="section-sub">제출된 사전과제가 없습니다. 사전과제를 제출한 뒤 새로고침하세요.</p>}
             {sharedPrework.map((pw) => (
               <div key={pw.id} className={`shared-prework-card ${expandedPreworkId === pw.id ? 'expanded' : ''}`} onClick={() => setExpandedPreworkId(expandedPreworkId === pw.id ? null : pw.id)}>
                 <div className="shared-prework-head">
-                  <p className="section-title">{pw.participantName || '익명'} · {pw.strategyTitle?.slice(0, 60)}{(pw.strategyTitle?.length || 0) > 60 ? '…' : ''}</p>
+                  <p className="section-title">{pw.participantName || '익명'} · {pw.strategyTitle?.slice(0, 80)}{(pw.strategyTitle?.length || 0) > 80 ? '…' : ''}</p>
                   <p className="section-sub">워크플로우 {pw.workflowSteps?.length || 0}단계, 과제 후보 {pw.taskCandidates?.length || 0}개 · 클릭하여 펼치기</p>
                 </div>
                 {expandedPreworkId === pw.id && (
@@ -707,96 +734,92 @@ export default function Home() {
             ))}
           </div>
           <div className="section-block">
-            <div className="session1-step-tabs">
-              <button type="button" className={session1Step === 'list' ? 'active' : ''} onClick={() => setSession1Step('list')}>1. 과제 목록 통합·우선순위</button>
-              <button type="button" className={session1Step === 'ice' ? 'active' : ''} onClick={() => setSession1Step('ice')}>2. ICE 정량 평가</button>
+            <h3>ICE 정량 평가</h3>
+            <p className="section-sub">각 과제에 1~10점을 부여하고, 1·2·3순위를 선택하세요. ICE 점수 순으로 정렬됩니다.</p>
+            <ul className="ice-criteria-list">
+              <li><strong>전략 부합도</strong> — 임원진이 규명한 조직 문제를 해결하는가?</li>
+              <li><strong>구현 가능성</strong> — 사내 보안·인프라 환경 내에서 구현 가능한가?</li>
+              <li><strong>데이터 확보성</strong> — 필요한 데이터가 확보되어 있거나 확보 가능한가?</li>
+            </ul>
+            <div style={{ overflowX: 'auto' }}>
+              <table className="ice-table">
+                <thead>
+                  <tr>
+                    <th>과제</th>
+                    <th>전략 부합도<br/><small>(1~10)</small></th>
+                    <th>구현 가능성<br/><small>(1~10)</small></th>
+                    <th>데이터 확보성<br/><small>(1~10)</small></th>
+                    <th>ICE 점수</th>
+                    <th>순위</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tasksForIce.map((t) => (
+                    <tr key={t.id}>
+                      <td><strong>{t.title || '(제목 없음)'}</strong><br /><small>{t.desc}</small></td>
+                      <td>
+                        <select value={session1.evaluations?.[t.id]?.impact ?? ''} onChange={(e) => updateIce(t.id, 'impact', e.target.value)}>
+                          <option value="">선택</option>
+                          {[1,2,3,4,5,6,7,8,9,10].map((n) => <option key={n} value={n}>{n}점</option>)}
+                        </select>
+                      </td>
+                      <td>
+                        <select value={session1.evaluations?.[t.id]?.ease ?? ''} onChange={(e) => updateIce(t.id, 'ease', e.target.value)}>
+                          <option value="">선택</option>
+                          {[1,2,3,4,5,6,7,8,9,10].map((n) => <option key={n} value={n}>{n}점</option>)}
+                        </select>
+                      </td>
+                      <td>
+                        <select value={session1.evaluations?.[t.id]?.confidence ?? ''} onChange={(e) => updateIce(t.id, 'confidence', e.target.value)}>
+                          <option value="">선택</option>
+                          {[1,2,3,4,5,6,7,8,9,10].map((n) => <option key={n} value={n}>{n}점</option>)}
+                        </select>
+                      </td>
+                      <td className="ice-score">{iceScore(session1.evaluations?.[t.id]) ?? '—'}</td>
+                      <td>
+                        <select value={session1.priorityRanks?.[t.id] ?? ''} onChange={(e) => setPriorityRank(t.id, e.target.value)}>
+                          <option value="">선택</option>
+                          <option value="1">1순위</option>
+                          <option value="2">2순위</option>
+                          <option value="3">3순위</option>
+                        </select>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-            {session1Step === 'list' && (
-              <>
-                <h3>과제 목록 통합 및 우선순위·합의</h3>
-                <p className="section-sub">본부 내 제출에서 모인 과제입니다. 순서를 정하고, 필요 시 제목·설명을 합의해 수정한 뒤, 2단계에서 ICE 평가를 진행하세요.</p>
-                {tasksForIce.map((t, i) => (
-                  <div key={t.id} className="agreed-task-row">
-                    <span className="agreed-order">{i + 1}</span>
-                    <div className="agreed-task-fields">
-                      <input type="text" value={t.title || ''} onChange={(e) => updateAgreedTask(t.id, 'title', e.target.value)} placeholder="과제 제목" />
-                      <input type="text" value={t.desc || ''} onChange={(e) => updateAgreedTask(t.id, 'desc', e.target.value)} placeholder="설명" />
-                    </div>
-                    <div className="agreed-task-actions">
-                      <button type="button" className="btn btn-sm" onClick={() => moveAgreedTask(t.id, 'up')} disabled={i === 0}>↑</button>
-                      <button type="button" className="btn btn-sm" onClick={() => moveAgreedTask(t.id, 'down')} disabled={i === tasksForIce.length - 1}>↓</button>
-                    </div>
-                  </div>
-                ))}
-                <button type="button" className="btn btn-primary" style={{ marginTop: 12 }} onClick={() => setSession1Step('ice')}>우선순위 반영 완료 → ICE 평가로</button>
-              </>
-            )}
-            {session1Step === 'ice' && (
-              <>
-                <h3>현실성 검토 — ICE 정량 평가</h3>
-                <p className="section-sub">각 과제에 대해 아래 세 가지를 1~10점으로 평가하세요. 점수는 드롭다운에서 선택합니다. 「우선 구현 과제로 선정」에 체크한 과제가 최종 구현 대상이 됩니다.</p>
-                <ul className="ice-criteria-list">
-                  <li><strong>전략 부합도</strong> — 임원진이 규명한 조직 문제를 해결하는가?</li>
-                  <li><strong>구현 가능성</strong> — 사내 보안·인프라 환경 내에서 구현 가능한가?</li>
-                  <li><strong>데이터 확보성</strong> — 필요한 데이터가 확보되어 있거나 확보 가능한가?</li>
-                </ul>
-                <div style={{ overflowX: 'auto' }}>
-                  <table className="ice-table">
-                    <thead>
-                      <tr>
-                        <th>과제</th>
-                        <th>전략 부합도<br/><small>(1~10)</small></th>
-                        <th>구현 가능성<br/><small>(1~10)</small></th>
-                        <th>데이터 확보성<br/><small>(1~10)</small></th>
-                        <th>ICE 점수</th>
-                        <th>우선 구현 과제로 선정</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {tasksForIce.map((t) => (
-                        <tr key={t.id}>
-                          <td><strong>{t.title || '(제목 없음)'}</strong><br /><small>{t.desc}</small></td>
-                          <td>
-                            <select value={session1.evaluations?.[t.id]?.impact ?? ''} onChange={(e) => updateIce(t.id, 'impact', e.target.value)}>
-                              <option value="">선택</option>
-                              {[1,2,3,4,5,6,7,8,9,10].map((n) => <option key={n} value={n}>{n}점</option>)}
-                            </select>
-                          </td>
-                          <td>
-                            <select value={session1.evaluations?.[t.id]?.ease ?? ''} onChange={(e) => updateIce(t.id, 'ease', e.target.value)}>
-                              <option value="">선택</option>
-                              {[1,2,3,4,5,6,7,8,9,10].map((n) => <option key={n} value={n}>{n}점</option>)}
-                            </select>
-                          </td>
-                          <td>
-                            <select value={session1.evaluations?.[t.id]?.confidence ?? ''} onChange={(e) => updateIce(t.id, 'confidence', e.target.value)}>
-                              <option value="">선택</option>
-                              {[1,2,3,4,5,6,7,8,9,10].map((n) => <option key={n} value={n}>{n}점</option>)}
-                            </select>
-                          </td>
-                          <td className="ice-score">{iceScore(session1.evaluations?.[t.id]) ?? '—'}</td>
-                          <td><label className="ice-confirm-label"><input type="checkbox" checked={(session1.confirmedIds || []).includes(t.id)} onChange={() => toggleConfirm(t.id)} /> 우선 구현</label></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </>
-            )}
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn" onClick={() => setPhase('session2')}>세션 2로 이동</button>
-            <button className="btn btn-primary" onClick={() => setPhase('session3')}>세션 3으로 이동</button>
           </div>
         </main>
       </div>
     );
   }
 
-  // ----- Session 2
+  // ----- Session 2: 아이디어 발산 → AI 추천 → 선택
   if (phase === 'session2') {
-    const track = session2.track || 'A';
-    const extra = track === 'A' ? (session2.extraA || []) : (session2.extraB || []);
+    const ideas = session2.ideas || [];
+    const recommended = session2.recommended || [];
+    const fetchIdeaRecommend = async () => {
+      if (!ideas.length) { alert('아이디어를 1개 이상 입력해 주세요.'); return; }
+      setAiLoading(true);
+      try {
+        const res = await fetch('/api/ai', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'idea_recommend', ideas: ideas.map((i) => ({ title: i.title, asIs: i.asIs, toBe: i.toBe, taskType: i.taskType })) }),
+        });
+        const data = await res.json();
+        if (data.error) alert('추천 받기 실패: ' + data.error);
+        else if (data.recommended) setSession2((s) => ({ ...s, recommended: data.recommended }));
+        else if (data.text) {
+          const lines = (data.text || '').split('\n').filter((l) => l.trim());
+          const rec = lines.slice(0, 10).map((line) => ({ title: line.replace(/^\d+\.\s*/, '').trim(), desc: '' }));
+          setSession2((s) => ({ ...s, recommended: rec }));
+        }
+      } finally {
+        setAiLoading(false);
+      }
+    };
     return (
       <div className="app-shell">
         <header className="app-header">
@@ -805,11 +828,13 @@ export default function Home() {
             <span className="app-title">롯데웰푸드 AI 전환 과제 설계</span>
           </div>
           <div style={{ flex: 1 }} />
+          <button type="button" className="btn btn-primary" onClick={() => setPhase('session3')}>세션 3으로 이동</button>
+          <span className="ph-sep" />
           <button type="button" className="phase-pill" onClick={() => setPhase('prework')}>사전과제</button>
           <span className="ph-sep" />
           <button type="button" className="phase-pill" onClick={() => setPhase('session1')}>세션 1</button>
           <span className="ph-sep" />
-          <button type="button" className="phase-pill ph-active">세션 2 (선택)</button>
+          <button type="button" className="phase-pill ph-active">세션 2</button>
           <span className="ph-sep" />
           <button type="button" className="phase-pill" onClick={() => setPhase('session3')}>세션 3</button>
         </header>
@@ -817,29 +842,60 @@ export default function Home() {
           <div className="info-banner">
             <span className="icon">2</span>
             <div>
-              <p className="title">세션 2 (선택) — 직책자 관점 추가 과제</p>
-              <p className="body">Track A: 세션1 확장 / Track B: 임원 범위 외 신규 과제</p>
+              <p className="title">세션 2 — 직책자 관점 아이디어 도출</p>
+              <p className="body">고민 중인 아이디어를 적고 AI 추천을 받은 뒤, 과제로 선택할 수 있습니다.</p>
             </div>
           </div>
-          <div className="track-tabs">
-            <button type="button" className={`track-tab ${track === 'A' ? 'active' : ''}`} onClick={() => setSession2((s) => ({ ...s, track: 'A' }))}>Track A · 임원 범위 확장</button>
-            <button type="button" className={`track-tab ${track === 'B' ? 'active' : ''}`} onClick={() => setSession2((s) => ({ ...s, track: 'B' }))}>Track B · 신규 과제</button>
-          </div>
-          <p className="section-sub">{track === 'A' ? '세션1 결과 기반 추가 과제를 적어 주세요.' : '임원이 정의하지 않은 영역의 과제를 도출하세요.'}</p>
-          {extra.map((t) => (
-            <div key={t.id} className="task-card">
-              <div className="task-dot" />
-              <div style={{ flex: 1 }}>
-                <input className="extra-title" placeholder="과제 제목" value={t.title || ''} onChange={(e) => updateExtra(track, t.id, 'title', e.target.value)} />
-                <input className="extra-desc" placeholder="설명" value={t.desc || ''} onChange={(e) => updateExtra(track, t.id, 'desc', e.target.value)} />
+          <div className="section-block">
+            <h3>아이디어 발산</h3>
+            <p className="section-sub">아이디어 제목, AS-IS(불편한 점), TO-BE(바꾸고 싶은 점), 유형을 입력하세요.</p>
+            {ideas.map((i) => (
+              <div key={i.id} className="idea-card">
+                <input className="idea-title" placeholder="아이디어 제목" value={i.title || ''} onChange={(e) => updateIdea(i.id, 'title', e.target.value)} />
+                <label>AS-IS (어떤 점이 불편한가요?)</label>
+                <textarea placeholder="현재 불편한 점" value={i.asIs || ''} onChange={(e) => updateIdea(i.id, 'asIs', e.target.value)} rows={2} />
+                <label>TO-BE (어떻게 바꾸면 좋겠나요?)</label>
+                <textarea placeholder="원하는 변화" value={i.toBe || ''} onChange={(e) => updateIdea(i.id, 'toBe', e.target.value)} rows={2} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <label>과제 유형:</label>
+                  <select value={i.taskType || 'new'} onChange={(e) => updateIdea(i.id, 'taskType', e.target.value)}>
+                    <option value="expand">임원진 과제 범위 확장</option>
+                    <option value="new">신규 과제</option>
+                  </select>
+                  <button type="button" className="btn btn-sm" onClick={() => delIdea(i.id)}>삭제</button>
+                </div>
               </div>
-              <button type="button" className="btn btn-sm" onClick={() => delExtra(track, t.id)}>삭제</button>
-            </div>
-          ))}
-          <div className="add-row" onClick={() => addExtra(track)}>+ {track === 'A' ? '확장' : '신규'} 과제 추가</div>
-          <div style={{ marginTop: 16 }}>
-            <button className="btn btn-primary" onClick={() => setPhase('session3')}>세션 3으로 이동</button>
+            ))}
+            <div className="add-row" onClick={addIdea}>+ 아이디어 추가</div>
+            <button type="button" className="btn btn-primary" disabled={aiLoading || !ideas.length} onClick={fetchIdeaRecommend} style={{ marginTop: 12 }}>{aiLoading ? '추천 생성 중…' : 'AI 추천 받기'}</button>
           </div>
+          {recommended.length > 0 && (
+            <div className="section-block">
+              <h3>추천 아이디어</h3>
+              <p className="section-sub">선택한 항목은 세션 1·3에 반영됩니다.</p>
+              {recommended.map((r, idx) => (
+                <div key={idx} className="recommended-card">
+                  <p className="recommended-title">{r.title || '(제목 없음)'}</p>
+                  {r.desc && <p className="recommended-desc">{r.desc}</p>}
+                  <button type="button" className="btn btn-sm btn-primary" onClick={() => addRecommendedToExtra(r)}>선택</button>
+                </div>
+              ))}
+            </div>
+          )}
+          {(session2.extraB || []).length > 0 && (
+            <div className="section-block">
+              <h3>선택한 과제</h3>
+              {(session2.extraB || []).map((t) => (
+                <div key={t.id} className="task-card">
+                  <div style={{ flex: 1 }}>
+                    <p className="title">{t.title}</p>
+                    <p className="desc">{t.desc}</p>
+                  </div>
+                  <button type="button" className="btn btn-sm" onClick={() => delExtra('B', t.id)}>삭제</button>
+                </div>
+              ))}
+            </div>
+          )}
         </main>
       </div>
     );
@@ -856,7 +912,10 @@ export default function Home() {
     { key: 'dataStrategy', label: '데이터 확보 전략', type: 'textarea' },
     { key: 'securityNotes', label: '보안·인프라 메모', type: 'textarea' },
   ];
-  const wfSummary = (prework.workflowSteps || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0)).map((s) => s.title).join(' → ');
+  const wfStepsSorted = (prework.workflowSteps || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0));
+  const wfSummary = wfStepsSorted.map((s) => s.title).join(' → ');
+  const wfFullText = wfStepsSorted.map((s, i) => `${i + 1}. ${s.title}\n   ${s.desc || ''}`).join('\n\n');
+  const strategyFull = prework.strategyFull || {};
 
   return (
     <div className="app-shell">
@@ -866,6 +925,9 @@ export default function Home() {
           <span className="app-title">롯데웰푸드 AI 전환 과제 설계</span>
         </div>
         <div style={{ flex: 1 }} />
+        {session3SelectedTaskId && <button type="button" className="btn btn-sm" onClick={() => setSession3SelectedTaskId(null)}>← 목록으로</button>}
+        <button type="button" className="btn btn-primary" onClick={() => window.print()}>인쇄 / PDF 저장</button>
+        <span className="ph-sep" />
         <button type="button" className="phase-pill" onClick={() => setPhase('session1')}>세션 1</button>
         <span className="ph-sep" />
         <button type="button" className="phase-pill" onClick={() => setPhase('session2')}>세션 2</button>
@@ -873,51 +935,66 @@ export default function Home() {
         <button type="button" className="phase-pill ph-active">세션 3</button>
       </header>
       <main className="app-main" style={{ padding: 20 }}>
-        <div className="info-banner">
-          <span className="icon">3</span>
-          <div>
-            <p className="title">세션 3 — 과제 리스트업 및 과업인계서</p>
-            <p className="body">전체 과제를 정리하고 과제정의서를 작성한 뒤 인쇄/PDF로 인계하세요.</p>
-          </div>
-        </div>
-        <div className="section-block">
-          <h3>전체 과제 리스트</h3>
-          {finalTasks.map((t, i) => (
-            <div key={t.id} className="task-card">
-              <div className="task-dot" />
-              <div style={{ flex: 1 }}>
-                <p className="title">{i + 1}. {t.title || '(제목 없음)'}</p>
-                <p className="desc">{t.desc} <small>[{t.source === 'extraA' ? '세션2 확장' : t.source === 'extraB' ? '세션2 신규' : '임원 기반'}]</small></p>
+        {!session3SelectedTaskId ? (
+          <>
+            <div className="info-banner">
+              <span className="icon">3</span>
+              <div>
+                <p className="title">세션 3 — 과제 리스트 및 과업인계서</p>
+                <p className="body">1~3순위로 선정한 과제를 선택하면 과제정의서를 작성할 수 있습니다. 임원진 내용·워크플로우를 참고해 실무 인계에 활용하세요.</p>
               </div>
             </div>
-          ))}
-        </div>
-        <div className="section-block">
-          <h3>과제정의서 작성</h3>
-          {finalTasks.map((t) => {
+            <div className="section-block">
+              <h3>전체 과제 리스트 (1~3순위)</h3>
+              {finalTasks.length === 0 && <p className="section-sub">세션 1에서 순위를 부여한 과제가 여기에 표시됩니다.</p>}
+              {finalTasks.map((t, i) => (
+                <div key={t.id} className="task-card task-card-clickable" onClick={() => setSession3SelectedTaskId(t.id)} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && setSession3SelectedTaskId(t.id)}>
+                  <div className="task-dot" />
+                  <div style={{ flex: 1 }}>
+                    <p className="title">{i + 1}. {t.title || '(제목 없음)'}</p>
+                    <p className="desc">{t.desc}</p>
+                  </div>
+                  <span className="section-sub">클릭 시 과제정의서 작성</span>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          (() => {
+            const t = finalTasks.find((x) => x.id === session3SelectedTaskId);
+            if (!t) return <p className="section-sub">과제를 찾을 수 없습니다.</p>;
             const d = session3.definitions?.[t.id] || {};
-            if (!d.title) d.title = t.title;
-            if (!d.workflowSummary) d.workflowSummary = wfSummary;
             return (
-              <div key={t.id} className="def-card">
-                <p className="section-title">과제: {t.title}</p>
+              <div className="section-block session3-def-view">
+                <h3>과제정의서: {t.title}</h3>
+                <div className="def-ref-block">
+                  <p className="section-label">참고: 임원진이 도출한 AX 전략</p>
+                  {strategyDetailOrder.filter((key) => strategyFull[key]).map((key) => (
+                    <div key={key} className="strategy-detail-card">
+                      <span className="strategy-detail-label">{key}</span>
+                      <span className="strategy-detail-value">{strategyFull[key]}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="def-ref-block">
+                  <p className="section-label">참고: 해당 과업의 전체 워크플로우</p>
+                  <pre className="wf-full-pre">{wfFullText}</pre>
+                </div>
+                <p className="section-label">과제정의서 작성 (실무 인계용)</p>
                 {defFields.map((f) => (
                   <div key={f.key} style={{ marginBottom: 10 }}>
                     <label>{f.label}</label>
                     {f.type === 'textarea' ? (
-                      <textarea value={d[f.key] ?? ''} onChange={(e) => updateDef(t.id, f.key, e.target.value)} rows={3} />
+                      <textarea value={d[f.key] ?? (f.key === 'workflowSummary' ? wfSummary : '')} onChange={(e) => updateDef(t.id, f.key, e.target.value)} rows={3} />
                     ) : (
-                      <input type="text" value={d[f.key] ?? ''} onChange={(e) => updateDef(t.id, f.key, e.target.value)} />
+                      <input type="text" value={d[f.key] ?? (f.key === 'title' ? t.title : '')} onChange={(e) => updateDef(t.id, f.key, e.target.value)} />
                     )}
                   </div>
                 ))}
               </div>
             );
-          })}
-        </div>
-        <div className="no-print">
-          <button type="button" className="btn btn-primary" onClick={() => window.print()}>과제정의서 인쇄 / PDF 저장</button>
-        </div>
+          })()
+        )}
       </main>
     </div>
   );

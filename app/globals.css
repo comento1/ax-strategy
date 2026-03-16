@@ -104,12 +104,9 @@
 }
 .strategy-card-news-item:hover { border-color: var(--color-border-tertiary); box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
 .strategy-card-news-item.sel { border-color: var(--color-text-info); box-shadow: 0 0 0 2px var(--color-background-info); }
-.card-news-visual {
-  height: 100px;
-  background: linear-gradient(135deg, var(--color-background-info) 0%, #bae6fd 100%);
-  flex-shrink: 0;
-}
 .card-news-body { padding: 14px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+.strategy-detail-modal-body { font-size: 13px; line-height: 1.6; }
+.strategy-detail-modal-body .strategy-detail-value { white-space: pre-wrap; word-break: break-word; }
 .card-news-title { font-size: 14px; font-weight: 600; margin: 0; line-height: 1.35; color: var(--color-text-primary); }
 .card-news-desc { font-size: 12px; color: var(--color-text-secondary); margin: 0; line-height: 1.45; }
 .btn-card-read {
@@ -157,6 +154,29 @@
 .wf-tag-icon { font-size: 12px; opacity: 0.9; }
 .wf-tag-ai .wf-tag-icon { color: var(--color-text-info); }
 .wf-tag-human .wf-tag-icon { color: var(--color-text-tertiary); }
+
+/* 워크플로우 드래그·세부 줄바꿈 */
+.wf-card-draggable { cursor: grab; }
+.wf-card-draggable:active { cursor: grabbing; }
+.wf-drag-handle { cursor: grab; color: var(--color-text-tertiary); font-size: 14px; user-select: none; }
+.wf-card-fields { flex: 1; min-width: 0; }
+.wf-input-desc-area { resize: vertical; min-height: 44px; white-space: pre-wrap; word-wrap: break-word; }
+.strategy-card-clickable:hover { background: var(--color-background-info); }
+
+/* 세션2 아이디어·추천 */
+.idea-card { background: var(--color-background-secondary); border: 1px solid var(--color-border-primary); border-radius: var(--border-radius-md); padding: 12px; margin-bottom: 12px; }
+.idea-card label { display: block; font-size: 11px; font-weight: 600; color: var(--color-text-tertiary); margin: 6px 0 4px; }
+.idea-card input.idea-title { width: 100%; padding: 8px; margin-bottom: 4px; }
+.idea-card textarea { width: 100%; padding: 8px; font-size: 12px; resize: vertical; }
+.recommended-card { display: flex; align-items: flex-start; gap: 12px; padding: 12px; border: 1px solid var(--color-border-secondary); border-radius: var(--border-radius-md); margin-bottom: 8px; background: var(--color-background-primary); }
+.recommended-title { font-weight: 600; margin: 0 0 4px; }
+.recommended-desc { font-size: 12px; color: var(--color-text-secondary); margin: 0; flex: 1; white-space: pre-wrap; }
+
+/* 세션3 정의서 참고 블록 */
+.def-ref-block { background: var(--color-background-secondary); border: 1px solid var(--color-border-primary); border-radius: var(--border-radius-md); padding: 14px; margin-bottom: 16px; }
+.wf-full-pre { white-space: pre-wrap; font-size: 12px; line-height: 1.5; margin: 0; }
+.task-card-clickable { cursor: pointer; }
+.task-card-clickable:hover { border-color: var(--color-text-info); background: var(--color-background-info); }
 
 /* 워크플로우 가이드 */
 .wf-guide-text { font-size: 12px; color: var(--color-text-secondary); margin: 0 0 12px; line-height: 1.5; }
