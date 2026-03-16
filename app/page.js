@@ -76,6 +76,8 @@ export default function Home() {
   const [aiTaskInput, setAiTaskInput] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [expandedPreworkId, setExpandedPreworkId] = useState(null);
+  const [expandedTaskKey, setExpandedTaskKey] = useState(null); // `${pwId}:${taskId}`
+  const [expandedWorkflowPwId, setExpandedWorkflowPwId] = useState(null); // 워크플로우 펼치기용
   const [agreedTasks, setAgreedTasks] = useState(() => {
     const local = loadLocal();
     return local?.agreedTasks || [];
@@ -91,6 +93,7 @@ export default function Home() {
   const [session2DraftAsIs, setSession2DraftAsIs] = useState('');
   const [session2DraftToBe, setSession2DraftToBe] = useState('');
   const [taskDraftText, setTaskDraftText] = useState(''); // 과제 도출용 초안 (과제화하기)
+  const [session2Step, setSession2Step] = useState('ideas'); // ideas | ice
 
   useEffect(() => {
     fetch('/api/logo')
@@ -1005,24 +1008,55 @@ export default function Home() {
                 <div key={strategyTitle} className="prework-group" style={{ marginBottom: 24 }}>
                   <p className="section-label" style={{ marginBottom: 8, fontWeight: 600 }}>📌 {strategyTitle}</p>
                   {list.map((pw) => (
-                    <div key={pw.id} className={`shared-prework-card ${expandedPreworkId === pw.id ? 'expanded' : ''}`} onClick={() => setExpandedPreworkId(expandedPreworkId === pw.id ? null : pw.id)}>
+                    <div key={pw.id} className="shared-prework-card">
                       <div className="shared-prework-head">
-                        <p className="section-title">{pw.participantName} · {pw.strategyTitle?.slice(0, 80)}{(pw.strategyTitle?.length || 0) > 80 ? '…' : ''}</p>
-                        <p className="section-sub">워크플로우 {pw.workflowSteps?.length || 0}단계, 과제 후보 {pw.taskCandidates?.length || 0}개 · 클릭하여 펼치기</p>
+                        <p className="section-title">{pw.participantName || '익명'} · {pw.strategyTitle?.slice(0, 80)}{(pw.strategyTitle?.length || 0) > 80 ? '…' : ''}</p>
+                        <p className="section-sub">과제 후보 {pw.taskCandidates?.length || 0}개, 워크플로우 {pw.workflowSteps?.length || 0}단계</p>
                       </div>
-                      {expandedPreworkId === pw.id && (
-                        <div className="shared-prework-body">
-                          <p className="section-label">워크플로우</p>
-                          <ol className="shared-wf-list">{(pw.workflowSteps || []).map((s, i) => <li key={s.id || i}>{s.title} — {s.desc}</li>)}</ol>
-                          <p className="section-label">과제 후보</p>
-                          {(pw.taskCandidates || []).length > 0 ? (
-                            <ul className="shared-task-list">{(pw.taskCandidates || []).map((t, i) => <li key={t.id || i}><strong>{t.title}</strong> {t.desc}</li>)}</ul>
-                          ) : (
-                            <p className="section-sub">제출된 과제 후보가 없습니다.</p>
-                          )}
-                          {(pw.questions || []).length > 0 && (<><p className="section-label">질문</p><ul className="shared-q-list">{(pw.questions || []).map((q, i) => <li key={i}>{q}</li>)}</ul></>)}
+                      <div className="shared-prework-body">
+                        <p className="section-label">과제 후보 (우선순위 검토)</p>
+                        {(pw.taskCandidates || []).length > 0 ? (
+                          <ul className="shared-task-list">
+                            {(pw.taskCandidates || []).map((t, i) => {
+                              const key = `${pw.id}:${t.id || i}`;
+                              const open = expandedTaskKey === key;
+                              return (
+                                <li key={t.id || i} style={{ marginBottom: 8 }}>
+                                  <button
+                                    type="button"
+                                    className={`btn btn-sm ${open ? 'btn-primary' : ''}`}
+                                    style={{ marginRight: 8 }}
+                                    onClick={() => setExpandedTaskKey(open ? null : key)}
+                                  >
+                                    {open ? '접기' : '펼치기'}
+                                  </button>
+                                  <strong>{t.title}</strong>
+                                  {open && t.desc && <div className="flowchart-step-desc" style={{ marginTop: 6 }}>{t.desc}</div>}
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        ) : (
+                          <p className="section-sub">제출된 과제 후보가 없습니다. (Prework 시트 H열 확인)</p>
+                        )}
+
+                        <div style={{ marginTop: 12 }}>
+                          <button
+                            type="button"
+                            className="btn btn-sm"
+                            onClick={() => setExpandedWorkflowPwId(expandedWorkflowPwId === pw.id ? null : pw.id)}
+                          >
+                            {expandedWorkflowPwId === pw.id ? '워크플로우 접기' : '워크플로우 보기'}
+                          </button>
                         </div>
-                      )}
+
+                        {expandedWorkflowPwId === pw.id && (
+                          <div style={{ marginTop: 10 }}>
+                            <p className="section-label">워크플로우</p>
+                            <ol className="shared-wf-list">{(pw.workflowSteps || []).map((s, i) => <li key={s.id || i}>{s.title} — {s.desc}</li>)}</ol>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1056,47 +1090,60 @@ export default function Home() {
               <p className="body">아이디어를 작성한 뒤 등록하고, 「과제 리스트에 추가하기」 버튼으로 ICE 정량 평가 대상으로 올려 주세요. ICE에서 1~3순위를 부여한 과제만 세션 3에 반영됩니다.</p>
             </div>
           </div>
-          <div className="section-block">
-            <button type="button" className="btn btn-sm" style={{ marginBottom: 12 }} onClick={() => setPhase('session1')}>← 세션 1로</button>
-            <h3>아이디어 작성</h3>
-            <p className="section-sub">제목, AS-IS, TO-BE를 각각 입력한 뒤 등록 버튼을 눌러 하단 목록에 추가하세요.</p>
-            <div className="idea-card session2-draft">
-              <input className="idea-title" placeholder="아이디어 제목" value={session2DraftTitle} onChange={(e) => setSession2DraftTitle(e.target.value)} />
-              <label className="session2-field-label">AS-IS (현재 불편한 점·문제)</label>
-              <textarea placeholder="AS-IS 내용" value={session2DraftAsIs} onChange={(e) => setSession2DraftAsIs(e.target.value)} rows={3} style={{ width: '100%', padding: 8, marginTop: 4 }} />
-              <label className="session2-field-label">TO-BE (바꾸고 싶은 방향·목표)</label>
-              <textarea placeholder="TO-BE 내용" value={session2DraftToBe} onChange={(e) => setSession2DraftToBe(e.target.value)} rows={3} style={{ width: '100%', padding: 8, marginTop: 4 }} />
-              <div style={{ marginTop: 12 }}>
-                <button type="button" className="btn btn-primary" onClick={() => { registerIdea(session2DraftTitle, session2DraftAsIs, session2DraftToBe); setSession2DraftTitle(''); setSession2DraftAsIs(''); setSession2DraftToBe(''); }}>등록</button>
-              </div>
-            </div>
-          </div>
-          <div className="section-block">
-            <h3>등록한 아이디어</h3>
-            <p className="section-sub">세션 3으로 검토할 항목을 「과제 리스트에 추가하기」로 선택하면 아래 ICE 정량 평가 테이블에 추가됩니다. ICE에서 1~3순위를 부여한 과제만 세션 3에 표시됩니다.</p>
-            {registeredIdeas.length === 0 && <p className="section-sub">등록된 아이디어가 없습니다. 위에서 작성 후 등록해 주세요.</p>}
-            {registeredIdeas.filter((r) => !isSampleTitle(r.title)).map((r) => (
-              <div key={r.id} className={`task-card session2-registered ${selectedIds.includes(r.id) ? 'session2-selected' : ''}`}>
-                <div style={{ flex: 1 }}>
-                  <p className="title">{r.title || '(제목 없음)'}</p>
-                  {r.asIs && <p className="desc"><strong>AS-IS:</strong> {r.asIs}</p>}
-                  {r.toBe && <p className="desc"><strong>TO-BE:</strong> {r.toBe}</p>}
+          {session2Step === 'ideas' ? (
+            <>
+              <div className="section-block">
+                <button type="button" className="btn btn-sm" style={{ marginBottom: 12 }} onClick={() => setPhase('session1')}>← 세션 1로</button>
+                <h3>아이디어 작성</h3>
+                <p className="section-sub">제목, AS-IS, TO-BE를 각각 입력한 뒤 등록 버튼을 눌러 하단 대시보드에 추가하세요.</p>
+                <div className="idea-card session2-draft">
+                  <input className="idea-title" placeholder="아이디어 제목" value={session2DraftTitle} onChange={(e) => setSession2DraftTitle(e.target.value)} />
+                  <label className="session2-field-label">AS-IS (현재 불편한 점·문제)</label>
+                  <textarea placeholder="AS-IS 내용" value={session2DraftAsIs} onChange={(e) => setSession2DraftAsIs(e.target.value)} rows={3} style={{ width: '100%', padding: 8, marginTop: 4 }} />
+                  <label className="session2-field-label">TO-BE (바꾸고 싶은 방향·목표)</label>
+                  <textarea placeholder="TO-BE 내용" value={session2DraftToBe} onChange={(e) => setSession2DraftToBe(e.target.value)} rows={3} style={{ width: '100%', padding: 8, marginTop: 4 }} />
+                  <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <button type="button" className="btn btn-primary" onClick={() => { registerIdea(session2DraftTitle, session2DraftAsIs, session2DraftToBe); setSession2DraftTitle(''); setSession2DraftAsIs(''); setSession2DraftToBe(''); }}>
+                      등록
+                    </button>
+                    <span className="section-sub">등록 {registeredIdeas.length}개 · ICE 대상 {(session2.selectedIds || []).length}개</span>
+                  </div>
                 </div>
-                <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                  <button type="button" className={`btn btn-sm ${selectedIds.includes(r.id) ? 'btn-primary' : ''}`} onClick={() => toggleIdeaSelected(r.id)}>
-                    {selectedIds.includes(r.id) ? '과제 리스트에서 제거' : '과제 리스트에 추가하기'}
+              </div>
+              <div className="section-block">
+                <h3>아이디어 대시보드 (등록/선정)</h3>
+                <p className="section-sub">새로운 주제를 함께 검토한 뒤, ICE 평가 대상으로 올릴 항목을 「과제 리스트에 추가하기」로 선정하세요.</p>
+                {registeredIdeas.length === 0 && <p className="section-sub">등록된 아이디어가 없습니다. 위에서 작성 후 등록해 주세요.</p>}
+                {registeredIdeas.filter((r) => !isSampleTitle(r.title)).map((r) => (
+                  <div key={r.id} className={`task-card session2-registered ${selectedIds.includes(r.id) ? 'session2-selected' : ''}`}>
+                    <div style={{ flex: 1 }}>
+                      <p className="title">{r.title || '(제목 없음)'}</p>
+                      {r.asIs && <p className="desc"><strong>AS-IS:</strong> {r.asIs}</p>}
+                      {r.toBe && <p className="desc"><strong>TO-BE:</strong> {r.toBe}</p>}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                      <button type="button" className={`btn btn-sm ${selectedIds.includes(r.id) ? 'btn-primary' : ''}`} onClick={() => toggleIdeaSelected(r.id)}>
+                        {selectedIds.includes(r.id) ? 'ICE 대상에서 제거' : '과제 리스트에 추가하기'}
+                      </button>
+                      <button type="button" className="btn btn-sm" onClick={() => removeRegisteredIdea(r.id)}>삭제</button>
+                    </div>
+                  </div>
+                ))}
+                <div style={{ marginTop: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <span className="section-sub">{(session2.selectedIds || []).length > 0 ? `ICE 평가 대상 ${(session2.selectedIds || []).length}개 선택됨` : 'ICE 평가 대상으로 올릴 아이디어를 선택해 주세요.'}</span>
+                  <button type="button" className="btn btn-primary" disabled={(session2.selectedIds || []).length === 0} onClick={() => setSession2Step('ice')}>
+                    다음: ICE 정량 평가 →
                   </button>
-                  <button type="button" className="btn btn-sm" onClick={() => removeRegisteredIdea(r.id)}>삭제</button>
                 </div>
               </div>
-            ))}
-            {selectedIds.length > 0 && <p className="section-sub" style={{ marginTop: 8 }}>선택한 {selectedIds.length}개 항목이 ICE 정량 평가에 반영됩니다.</p>}
-          </div>
-
-          {/* ICE 정량 평가: 세션2 아이디어까지 포함하여 평가 */}
-          <div className="section-block session1-ice-section">
-            <h3>ICE 정량 평가</h3>
-            <p className="section-sub">세션1·2에서 도출한 과제에 대해 1~10점을 부여하고, 1·2·3순위를 선택하세요. ICE 점수 높은 순으로 정렬됩니다.</p>
+            </>
+          ) : (
+            <div className="section-block session1-ice-section">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <h3 style={{ margin: 0 }}>ICE 정량 평가</h3>
+                <button type="button" className="btn btn-sm" onClick={() => setSession2Step('ideas')}>← 아이디어 선정으로</button>
+              </div>
+              <p className="section-sub">세션1·2에서 도출한 과제에 대해 1~10점을 부여하고, 1·2·3순위를 선택하세요. ICE 점수 높은 순으로 정렬됩니다.</p>
             <ul className="ice-criteria-list">
               <li><strong>전략 부합도</strong> — 임원진이 규명한 조직 문제를 해결하는가?</li>
               <li><strong>구현 가능성</strong> — 사내 보안·인프라 환경 내에서 구현 가능한가?</li>
@@ -1150,7 +1197,13 @@ export default function Home() {
                 </tbody>
               </table>
             </div>
+              <div style={{ marginTop: 16, textAlign: 'right' }}>
+                <button type="button" className="btn btn-primary" onClick={() => setPhase('session3')}>
+                  다음: 세션 3으로 이동 →
+                </button>
+              </div>
           </div>
+          )}
         </main>
       </div>
     );
@@ -1161,7 +1214,7 @@ export default function Home() {
     { key: 'reason', label: '선택한 주제가 반드시 개선되어야 할 이유는 무엇입니까?', type: 'textarea' },
     { key: 'expectedChange', label: '개선되어야 하는 과업이 AI를 기반으로 어떻게 변화되길 기대하십니까?', type: 'textarea' },
     { key: 'successCriteria', label: '이 문제가 AI를 기반으로 성공적으로 해소/생산성이 향상되었다고 인정 받기 위해, 달성되어야 하거나, 구현된 결과물에 반드시 고려되어야 할 것은 무엇입니까?', type: 'textarea' },
-    { key: 'implementationNotes', label: '구현 과정에서 구현자가 반드시 고려해야 할 사항은 무엇입니까?', type: 'textarea' },
+    { key: 'implementationNotes', label: '데이터 확보전략 및 실무자 시간 확보전략, 보안 이슈 등 구현 과정에서 고려, 안배해야 할 사항은 무엇입니까?', type: 'textarea' },
     { key: 'keyMan', label: '본 과제를 구현할 담당자는 누가 적합하겠습니까? (Key Man 설정)', type: 'text' },
   ];
   const wfStepsSorted = (prework.workflowSteps || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0));
