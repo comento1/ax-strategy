@@ -457,9 +457,14 @@ export default function Home() {
     .map((r) => ({ id: `s2row:${r.rowIndex || 0}`, title: r.title, desc: [r.asIs, r.toBe].filter(Boolean).join('\n\n'), source: 'session2_idea' }));
   const selectedDept = (viewSession2Dept || department || '').trim();
   const selectedDeptNorm = normalizeDept(selectedDept);
-  const myIdeasDisplay = (sharedSession2Ideas || []).filter(
-    (r) => normalizeDept(r.department) === selectedDeptNorm
-  );
+  const myIdeasDisplay = (sharedSession2Ideas || [])
+    .filter((r) => normalizeDept(r.department) === selectedDeptNorm)
+    .sort((a, b) => {
+      const ca = (a.createdAt || '').trim();
+      const cb = (b.createdAt || '').trim();
+      if (ca && cb && ca !== cb) return cb.localeCompare(ca);
+      return (b.rowIndex ?? 0) - (a.rowIndex ?? 0);
+    });
   const tasksForIceRaw = [...baseIceTasks, ...selectedIdeasAsTasks].filter((t) => !isSampleTitle(t.title));
   const iceScoreForTask = (t) => iceScore(session1.evaluations?.[t.id]);
   const tasksForIce = [...tasksForIceRaw].sort((a, b) => {
