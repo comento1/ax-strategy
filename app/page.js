@@ -149,9 +149,9 @@ export default function Home() {
       .catch(() => setIcePreworkTasks([]));
   }, [department]);
 
-  // Prework 시트 H열(과제목록) 기반 ICE 과제 로드 — 세션2 진입 시 + ICE 단계 진입 시 재조회
+  // Prework 시트 H열(과제목록) 기반 ICE 과제 로드 — 세션2·세션3에서 사용(전체 과제 리스트 동일 소스)
   useEffect(() => {
-    if (phase !== 'session2') return;
+    if (phase !== 'session2' && phase !== 'session3') return;
     fetchIcePreworkTasks();
   }, [phase, department, fetchIcePreworkTasks]);
 
@@ -159,16 +159,27 @@ export default function Home() {
     if (phase === 'session2' && session2Step === 'ice') fetchIcePreworkTasks();
   }, [phase, session2Step, fetchIcePreworkTasks]);
 
-  // 시트에 반영된 아이디어는 recentlyRegistered에서 제거(상태 정리용, 표시는 시트만 사용)
+  // 시트에 반영된 아이디어는 recentlyRegistered에서 제거. 선정된 항목은 시트 ICE선정=Y로 동기화
   useEffect(() => {
     const mine = (sharedSession2Ideas || []).filter(
       (r) => (r.department || '').trim() === (department || '').trim() && (r.participantName || '').trim() === (participantName || '').trim()
     );
+    const rec = session2.recentlyRegistered || [];
+    const ids = session2.selectedIds || [];
+    const toSyncRowIndices = [];
+    rec.forEach((r) => {
+      const sheetMatch = mine.find((i) => (i.title || '').trim() === (r.title || '').trim() && (i.asIs || '').trim() === (r.asIs || '').trim());
+      if (sheetMatch && ids.includes(r.id)) toSyncRowIndices.push(sheetMatch.rowIndex);
+    });
     setSession2((s) => {
       const recS = s.recentlyRegistered || [];
       const newRec = recS.filter((r) => !mine.some((i) => (i.title || '').trim() === (r.title || '').trim() && (i.asIs || '').trim() === (r.asIs || '').trim()));
-      if (newRec.length === recS.length) return s;
-      return { ...s, recentlyRegistered: newRec };
+      const newIds = (s.selectedIds || []).filter((id) => !recS.some((r) => r.id === id && mine.some((i) => (i.title || '').trim() === (r.title || '').trim() && (i.asIs || '').trim() === (r.asIs || '').trim())));
+      if (newRec.length === recS.length && newIds.length === (s.selectedIds || []).length) return s;
+      return { ...s, recentlyRegistered: newRec, selectedIds: newIds };
+    });
+    toSyncRowIndices.forEach((rowIndex) => {
+      fetch('/api/prework', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'session2_select', rowIndex, selected: true }) }).catch(() => {});
     });
   }, [sharedSession2Ideas, department, participantName]);
 
@@ -434,8 +445,8 @@ export default function Home() {
     if (!ev || ev.impact == null || ev.ease == null || ev.confidence == null) return null;
     return Math.round(((ev.impact + ev.ease + ev.confidence) / 3) * 10) / 10;
   };
-  // 세션2 ICE에서는 항상 Prework 시트(H열) + 선정 아이디어만 사용. agreedTasks(샘플 가능)는 사용하지 않음.
-  const baseIceTasks = phase === 'session2'
+  // 세션2·세션3에서 ICE/전체과제리스트는 항상 Prework 시트 + 선정 아이디어만 사용. agreedTasks(샘플 가능) 미사용.
+  const baseIceTasks = (phase === 'session2' || phase === 'session3')
     ? [
         ...icePreworkTasks,
         ...(session2.extraB || []).map((t) => ({ ...t, source: 'extraB' })),
@@ -444,14 +455,20 @@ export default function Home() {
         ...icePreworkTasks,
         ...(session2.extraB || []).map((t) => ({ ...t, source: 'extraB' })),
       ]);
-  // ICE 선정: 시트 ICE선정 컬럼만 사용. 시트에 없는 데이터(샘플)는 표시하지 않음.
-  const selectedIdeasAsTasks = (sharedSession2Ideas || [])
-    .filter((r) => r.iceSelected === true)
-    .map((r) => ({ id: `s2row:${r.rowIndex || 0}`, title: r.title, desc: [r.asIs, r.toBe].filter(Boolean).join('\n\n'), source: 'session2_idea' }));
+  const selectedIdsForIdeas = session2.selectedIds || [];
+  // ICE 선정: 시트(iceSelected) + 방금 등록(selectedIds). 표시는 시트+방금등록(등록 즉시 보이게).
+  const selectedIdeasAsTasks = [
+    ...(sharedSession2Ideas || []).filter((r) => r.iceSelected === true).map((r) => ({ id: `s2row:${r.rowIndex || 0}`, title: r.title, desc: [r.asIs, r.toBe].filter(Boolean).join('\n\n'), source: 'session2_idea' })),
+    ...(session2.recentlyRegistered || []).filter((r) => selectedIdsForIdeas.includes(r.id)).map((r) => ({ id: r.id, title: r.title, desc: [r.asIs, r.toBe].filter(Boolean).join('\n\n'), source: 'session2_idea' })),
+  ];
   const mySession2Ideas = (sharedSession2Ideas || []).filter(
     (r) => (r.department || '').trim() === (department || '').trim() && (r.participantName || '').trim() === (participantName || '').trim()
   );
-  const myIdeasDisplay = mySession2Ideas;
+  const recentlyRegistered = session2.recentlyRegistered || [];
+  const myIdeasDisplay = [
+    ...recentlyRegistered,
+    ...mySession2Ideas.filter((m) => !recentlyRegistered.some((r) => (r.title || '').trim() === (m.title || '').trim() && (r.asIs || '').trim() === (m.asIs || '').trim())),
+  ];
   const tasksForIceRaw = [...baseIceTasks, ...selectedIdeasAsTasks].filter((t) => !isSampleTitle(t.title));
   const iceScoreForTask = (t) => iceScore(session1.evaluations?.[t.id]);
   const tasksForIce = [...tasksForIceRaw].sort((a, b) => {
@@ -506,6 +523,12 @@ export default function Home() {
     if (!t) return;
     const asIsVal = (asIs || '').trim();
     const toBeVal = (toBe || '').trim();
+    const newId = 'recent:' + id();
+
+    setSession2((s) => ({
+      ...s,
+      recentlyRegistered: [...(s.recentlyRegistered || []), { id: newId, title: t, asIs: asIsVal, toBe: toBeVal }],
+    }));
 
     try {
       await fetch('/api/prework', {
@@ -1239,8 +1262,9 @@ export default function Home() {
               <div className="section-block">
                 <h3>내가 방금 등록한 아이디어</h3>
                 {myIdeasDisplay.map((r) => {
-                  const key = `s2row:${r.rowIndex ?? 0}`;
-                  const selected = !!r.iceSelected;
+                  const isSheet = !!r.rowIndex;
+                  const key = isSheet ? `s2row:${r.rowIndex}` : (r.id || 'recent');
+                  const selected = isSheet ? !!r.iceSelected : selectedIds.includes(r.id);
                   return (
                     <div key={key} className={`task-card session2-registered ${selected ? 'session2-selected' : ''}`} style={{ marginBottom: 10 }}>
                       <div style={{ flex: 1 }}>
@@ -1249,7 +1273,7 @@ export default function Home() {
                         {r.toBe ? <p className="desc"><strong>TO-BE:</strong> {r.toBe}</p> : null}
                       </div>
                       <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                        <button type="button" className={`btn btn-sm ${selected ? 'btn-primary' : ''}`} onClick={() => toggleIdeaSelected(r, true)}>
+                        <button type="button" className={`btn btn-sm ${selected ? 'btn-primary' : ''}`} onClick={() => toggleIdeaSelected(r, isSheet)}>
                           {selected ? 'ICE 대상에서 제거' : '과제 리스트에 추가하기'}
                         </button>
                       </div>
