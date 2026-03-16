@@ -96,6 +96,10 @@ export default function Home() {
   const [session2Step, setSession2Step] = useState('ideas'); // ideas | ice
 
   useEffect(() => {
+    if (phase === 'session2') setSession2Step('ideas');
+  }, [phase]);
+
+  useEffect(() => {
     fetch('/api/logo')
       .then((r) => r.json())
       .then((d) => { if (d.logoUrl) setLogoUrl(d.logoUrl); })
@@ -1006,35 +1010,31 @@ export default function Home() {
               });
               return Object.entries(byStrategy).map(([strategyTitle, list]) => (
                 <div key={strategyTitle} className="prework-group" style={{ marginBottom: 24 }}>
-                  <p className="section-label" style={{ marginBottom: 8, fontWeight: 600 }}>📌 {strategyTitle}</p>
+                  <div className="prework-group-title">
+                    <span className="prework-group-badge">임원진 도출 영역</span>
+                    <span className="prework-group-text">{strategyTitle}</span>
+                  </div>
                   {list.map((pw) => (
                     <div key={pw.id} className="shared-prework-card">
                       <div className="shared-prework-head">
-                        <p className="section-title">{pw.participantName || '익명'} · {pw.strategyTitle?.slice(0, 80)}{(pw.strategyTitle?.length || 0) > 80 ? '…' : ''}</p>
-                        <p className="section-sub">과제 후보 {pw.taskCandidates?.length || 0}개, 워크플로우 {pw.workflowSteps?.length || 0}단계</p>
+                        <p className="section-title" style={{ marginBottom: 6 }}>
+                          <strong style={{ fontWeight: 700 }}>{pw.participantName || '익명'}</strong>
+                          <span style={{ color: 'var(--color-text-tertiary)' }}> · 제출</span>
+                        </p>
+                        <p className="section-sub" style={{ margin: 0 }}>
+                          과제 후보 {pw.taskCandidates?.length || 0}개, 워크플로우 {pw.workflowSteps?.length || 0}단계
+                        </p>
                       </div>
                       <div className="shared-prework-body">
                         <p className="section-label">과제 후보 (우선순위 검토)</p>
                         {(pw.taskCandidates || []).length > 0 ? (
                           <ul className="shared-task-list">
-                            {(pw.taskCandidates || []).map((t, i) => {
-                              const key = `${pw.id}:${t.id || i}`;
-                              const open = expandedTaskKey === key;
-                              return (
-                                <li key={t.id || i} style={{ marginBottom: 8 }}>
-                                  <button
-                                    type="button"
-                                    className={`btn btn-sm ${open ? 'btn-primary' : ''}`}
-                                    style={{ marginRight: 8 }}
-                                    onClick={() => setExpandedTaskKey(open ? null : key)}
-                                  >
-                                    {open ? '접기' : '펼치기'}
-                                  </button>
-                                  <strong>{t.title}</strong>
-                                  {open && t.desc && <div className="flowchart-step-desc" style={{ marginTop: 6 }}>{t.desc}</div>}
-                                </li>
-                              );
-                            })}
+                            {(pw.taskCandidates || []).map((t, i) => (
+                              <li key={t.id || i} className="prework-task-item">
+                                <div className="prework-task-title">{t.title}</div>
+                                {t.desc && <div className="prework-task-desc">{t.desc}</div>}
+                              </li>
+                            ))}
                           </ul>
                         ) : (
                           <p className="section-sub">제출된 과제 후보가 없습니다. (Prework 시트 H열 확인)</p>
@@ -1131,7 +1131,15 @@ export default function Home() {
                 ))}
                 <div style={{ marginTop: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                   <span className="section-sub">{(session2.selectedIds || []).length > 0 ? `ICE 평가 대상 ${(session2.selectedIds || []).length}개 선택됨` : 'ICE 평가 대상으로 올릴 아이디어를 선택해 주세요.'}</span>
-                  <button type="button" className="btn btn-primary" disabled={(session2.selectedIds || []).length === 0} onClick={() => setSession2Step('ice')}>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={(session2.selectedIds || []).length === 0}
+                    onClick={() => {
+                      setSession2Step('ice');
+                      setTimeout(() => { try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch { window.scrollTo(0, 0); } }, 0);
+                    }}
+                  >
                     다음: ICE 정량 평가 →
                   </button>
                 </div>
