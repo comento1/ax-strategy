@@ -20,7 +20,9 @@ async function proxyToSheets(method, req) {
       if (!res.ok) {
         return NextResponse.json(data || { error: 'Sheets Web App 오류' }, { status: res.status >= 400 ? res.status : 500 });
       }
-      return NextResponse.json(Array.isArray(data) ? data : []);
+      if (Array.isArray(data)) return NextResponse.json(data);
+      if (data && typeof data === 'object' && data.error) return NextResponse.json([]);
+      return NextResponse.json([]);
     }
 
     if (method === 'POST') {

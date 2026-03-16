@@ -7,6 +7,16 @@ const STORAGE_KEY = 'ax_workshop';
 
 const WORKFLOW_GUIDE = '현재 업무를 AI 적용 전(AS-IS) 기준으로, 실제 수행 순서대로 한 덩어리로 적은 뒤 「단계로 쪼개기」를 누르면 단계별로 정리됩니다.';
 
+function isSampleTitle(title) {
+  if (!title || !String(title).trim()) return false;
+  const t = String(title).trim();
+  if (t.indexOf('ZERO') >= 0) return true;
+  if (t === '테스트' || t.indexOf('테스트') === 0) return true;
+  if (t.indexOf('ㅁㄴㅇ') >= 0) return true;
+  if (/^[OLo\s]+$/i.test(t)) return true;
+  return false;
+}
+
 function id() {
   return 'id-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
 }
@@ -30,6 +40,7 @@ export default function Home() {
   const [strategies, setStrategies] = useState({ departments: [], strategies: [] });
   const [selectedStrategy, setSelectedStrategy] = useState(null);
   const [viewDepartment, setViewDepartment] = useState(''); // 리뷰 시 보기용 본부 (기본: 내 본부)
+  const [viewPreworkDept, setViewPreworkDept] = useState(''); // 세션1 사전과제 목록 조회용 본부
   const [viewMode, setViewMode] = useState('list'); // list | stream
   const [phase, setPhase] = useState('entry'); // entry | review | prework | session1 | session2 | session3
   const [prework, setPrework] = useState(() => {
@@ -100,14 +111,18 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (phase === 'session1' && (department || '').trim()) {
-      const dept = (department || '').trim();
+    if (phase === 'session1') {
+      const dept = (viewPreworkDept || department || '').trim();
+      if (!dept) {
+        setSharedPrework([]);
+        return;
+      }
       fetch(`/api/prework?department=${encodeURIComponent(dept)}`)
         .then((r) => r.json())
         .then((list) => {
           const arr = Array.isArray(list) ? list : [];
           setSharedPrework(arr);
-          if (agreedTasks.length === 0 && arr.length > 0) {
+          if (agreedTasks.length === 0 && arr.length > 0 && dept === (department || '').trim()) {
             const flat = arr.flatMap((pw) => (pw.taskCandidates || []).map((t) => ({
               id: t.id,
               title: t.title,
@@ -122,7 +137,7 @@ export default function Home() {
         })
         .catch(() => setSharedPrework([]));
     }
-  }, [phase, department]);
+  }, [phase, department, viewPreworkDept]);
 
   const addWfStep = () => {
     setPrework((p) => ({
@@ -339,10 +354,14 @@ export default function Home() {
     if (!ev || ev.impact == null || ev.ease == null || ev.confidence == null) return null;
     return Math.round(((ev.impact + ev.ease + ev.confidence) / 3) * 10) / 10;
   };
-  const tasksForIceRaw = agreedTasks.length > 0 ? agreedTasks : [
+  const baseIceTasks = agreedTasks.length > 0 ? agreedTasks : [
     ...(prework.taskCandidates || []),
     ...(session2.extraB || []).map((t) => ({ ...t, source: 'extraB' })),
   ];
+  const selectedIdeasAsTasks = (session2.registeredIdeas || [])
+    .filter((r) => (session2.selectedIds || []).includes(r.id))
+    .map((r) => ({ id: r.id, title: r.title, desc: [r.asIs, r.toBe].filter(Boolean).join('\n\n'), source: 'session2_idea' }));
+  const tasksForIceRaw = [...baseIceTasks, ...selectedIdeasAsTasks].filter((t) => !isSampleTitle(t.title));
   const iceScoreForTask = (t) => iceScore(session1.evaluations?.[t.id]);
   const tasksForIce = [...tasksForIceRaw].sort((a, b) => {
     const sa = iceScoreForTask(a);
@@ -412,39 +431,6 @@ export default function Home() {
       return { ...s, selectedIds: has ? ids.filter((id) => id !== ideaId) : [...ids, ideaId] };
     });
   };
-  const moveSelectedToSession3 = async () => {
-    const toAdd = registeredIdeas.filter((r) => selectedIds.includes(r.id)).map((r) => ({
-      id: r.id,
-      title: r.title,
-      desc: [r.asIs, r.toBe].filter(Boolean).join('\n\n'),
-      asIs: r.asIs || '',
-      toBe: r.toBe || '',
-    }));
-    if (toAdd.length === 0) { alert('세션 3으로 가져갈 항목을 1개 이상 선택해 주세요.'); return; }
-    setSubmitting(true);
-    try {
-      const res = await fetch('/api/prework', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'session2',
-          department: department || '',
-          participantName: participantName || '익명',
-          participantPosition: participantPosition || '',
-          items: toAdd.map((t) => ({ title: t.title, asIs: t.asIs, toBe: t.toBe, desc: t.desc })),
-        }),
-      });
-      if (!res.ok) alert('선택한 항목 저장에 실패했습니다.');
-    } finally {
-      setSubmitting(false);
-    }
-    setSession2((s) => ({
-      ...s,
-      extraB: [...(s.extraB || []), ...toAdd],
-      selectedIds: [],
-    }));
-    setPhase('session3');
-  };
   const removeRegisteredIdea = (ideaId) => {
     setSession2((s) => ({
       ...s,
@@ -455,11 +441,13 @@ export default function Home() {
 
   const priorityRanks = session1.priorityRanks || {};
   const finalTasks = (() => {
-    const ranked = tasksForIceRaw.filter((t) => priorityRanks[t.id] != null).sort((a, b) => (priorityRanks[a.id] || 99) - (priorityRanks[b.id] || 99));
-    const fromSession2 = (session2.extraB || []).map((t) => ({ ...t, source: 'extraB' }));
-    const rankedIds = new Set(ranked.map((t) => t.id));
-    const extraFromSession2 = fromSession2.filter((t) => !rankedIds.has(t.id));
-    return ranked.length > 0 ? [...ranked, ...extraFromSession2] : fromSession2;
+    const onlyRanked123 = tasksForIceRaw
+      .filter((t) => {
+        const r = priorityRanks[t.id];
+        return r === 1 || r === 2 || r === 3;
+      })
+      .sort((a, b) => (priorityRanks[a.id] || 99) - (priorityRanks[b.id] || 99));
+    return onlyRanked123.filter((t) => !isSampleTitle(t.title));
   })();
 
   const updateDef = (taskId, field, value) => {
@@ -836,7 +824,7 @@ export default function Home() {
                   <div className="ai-assist-box ai-box-task">
                     <button
                       type="button"
-                      className="btn-example-primary"
+                      className="btn btn-example-primary"
                       disabled={aiLoading}
                       onClick={() => callAi('task')}
                     >
@@ -865,12 +853,15 @@ export default function Home() {
                             {(prework.workflowSteps || [])
                               .slice()
                               .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-                              .map((s, i) => (
-                                <li key={s.id} style={{ marginBottom: 6 }}>
-                                  <strong>{i + 1}. {s.title || '(제목 없음)'}</strong>
-                                  {s.desc && <div className="flowchart-step-desc">{s.desc}</div>}
-                                </li>
-                              ))}
+                              .map((s, i) => {
+                                const displayTitle = (s.title || '').replace(/^\d+\.\s*/, '').trim() || '(제목 없음)';
+                                return (
+                                  <li key={s.id} style={{ marginBottom: 6 }}>
+                                    <strong>{displayTitle}</strong>
+                                    {s.desc && <div className="flowchart-step-desc">{s.desc}</div>}
+                                  </li>
+                                );
+                              })}
                           </ol>
                         </div>
                       )}
@@ -983,8 +974,25 @@ export default function Home() {
           </div>
           <div className="section-block session1-section">
             <h3>본부 내 제출된 사전과제 목록</h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+              <label className="view-dept-label">조회 본부</label>
+              <select
+                className="view-dept-select"
+                value={viewPreworkDept || department || ''}
+                onChange={(e) => setViewPreworkDept(e.target.value || '')}
+              >
+                <option value={department || ''}>{department || '(내 본부)'}</option>
+                {(strategies.departments || []).filter((d) => d !== department).map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+              <button type="button" className="btn btn-sm" onClick={() => {
+                const dept = (viewPreworkDept || department || '').trim();
+                if (dept) fetch(`/api/prework?department=${encodeURIComponent(dept)}`).then((r) => r.json()).then((list) => setSharedPrework(Array.isArray(list) ? list : []));
+              }}>새로고침</button>
+            </div>
             {sharedPrework.length === 0 && (
-              <p className="section-sub">제출된 사전과제가 없습니다. <button type="button" className="btn btn-sm" onClick={() => { fetch(`/api/prework?department=${encodeURIComponent(department || '')}`).then((r) => r.json()).then((list) => setSharedPrework(Array.isArray(list) ? list : [])); }}>새로고침</button></p>
+              <p className="section-sub">제출된 사전과제가 없습니다. 위에서 본부를 선택한 뒤 새로고침해 보세요.</p>
             )}
             {sharedPrework.map((pw) => (
               <div key={pw.id} className={`shared-prework-card ${expandedPreworkId === pw.id ? 'expanded' : ''}`} onClick={() => setExpandedPreworkId(expandedPreworkId === pw.id ? null : pw.id)}>
@@ -1028,7 +1036,7 @@ export default function Home() {
             <span className="icon">2</span>
             <div>
               <p className="title">세션 2 — 아이디어 발산</p>
-              <p className="body">아이디어를 작성한 뒤 등록하고, 하단 목록에서 복수 선택하여 세션 3 과제로 진행할 수 있습니다.</p>
+              <p className="body">아이디어를 작성한 뒤 등록하고, 세션 3으로 가져갈 항목을 「선택」하면 ICE 정량 평가 목록에 추가됩니다. ICE에서 1~3순위를 부여한 과제만 세션 3에 반영됩니다.</p>
             </div>
           </div>
           <div className="section-block">
@@ -1048,9 +1056,9 @@ export default function Home() {
           </div>
           <div className="section-block">
             <h3>등록한 아이디어</h3>
-            <p className="section-sub">세션 3으로 가져갈 항목을 「선택」 버튼으로 고른 뒤, 하단의 「선택한 항목을 세션 3 과제로」를 누르세요.</p>
+            <p className="section-sub">세션 3으로 검토할 항목을 「선택」하면 아래 ICE 정량 평가 테이블에 추가됩니다. ICE에서 1~3순위를 부여한 과제만 세션 3에 표시됩니다.</p>
             {registeredIdeas.length === 0 && <p className="section-sub">등록된 아이디어가 없습니다. 위에서 작성 후 등록해 주세요.</p>}
-            {registeredIdeas.map((r) => (
+            {registeredIdeas.filter((r) => !isSampleTitle(r.title)).map((r) => (
               <div key={r.id} className={`task-card session2-registered ${selectedIds.includes(r.id) ? 'session2-selected' : ''}`}>
                 <div style={{ flex: 1 }}>
                   <p className="title">{r.title || '(제목 없음)'}</p>
@@ -1065,14 +1073,7 @@ export default function Home() {
                 </div>
               </div>
             ))}
-            {registeredIdeas.length > 0 && (
-              <div style={{ marginTop: 16 }}>
-                <button type="button" className="btn btn-primary" disabled={submitting || selectedIds.length === 0} onClick={moveSelectedToSession3}>
-                  {submitting ? '저장 중…' : '선택한 항목을 세션 3 과제로'}
-                </button>
-                {selectedIds.length > 0 && <span className="section-sub" style={{ marginLeft: 8 }}>{selectedIds.length}개 선택됨</span>}
-              </div>
-            )}
+            {selectedIds.length > 0 && <p className="section-sub" style={{ marginTop: 8 }}>선택한 {selectedIds.length}개 항목이 ICE 정량 평가에 반영됩니다.</p>}
           </div>
 
           {/* ICE 정량 평가: 세션2 아이디어까지 포함하여 평가 */}

@@ -20,10 +20,13 @@ function isSampleTitle(title) {
   var t = String(title).trim();
   if (!t) return false;
   // ZERO 브랜드 샘플
-  if (t.indexOf('ZERO 브랜드 라인업 확대') >= 0) return true;
+  if (t.indexOf('ZERO') >= 0 || t.indexOf('ZERO 브랜드') >= 0) return true;
   // 단순 테스트용 제목
-  if (t === '테스트' || t === '테스트 2') return true;
-  if (t === 'ㅁㄴㅇ' || t === 'ㅁㄴㅇ ㅁㄴㅁㅁㄴ') return true;
+  if (t === '테스트' || t.indexOf('테스트') === 0) return true;
+  if (t === 'ㅁㄴㅇ' || t.indexOf('ㅁㄴㅇ') >= 0) return true;
+  // 의미 없는 문자열 (OLO 등)
+  if (/^[OLo\s]+$/i.test(t)) return true;
+  if (t.length <= 5 && t.indexOf('OLO') >= 0) return true;
   return false;
 }
 
@@ -144,6 +147,9 @@ function doGet(e) {
               obj[key] = val;
               if (key === '작성본부' && val) deptSet[val] = true;
             }
+            // 카드 타이틀은 항상 B열(인덱스 1) 값 사용
+            var bCol = row[1] != null ? String(row[1]).trim() : '';
+            obj['제목'] = bCol || obj['제목'] || '';
             if (headers.length > 6 && row[6] != null) obj['_G열'] = String(row[6]).trim();
             // 전략 시트에도 샘플 행이 있을 수 있으므로, 제목 기준으로 필터링
             var titleVal = obj['제목'] || obj['AI 적용 기대영역'] || '';
@@ -244,6 +250,7 @@ function doGet(e) {
 
         var title3 = taskTitleIdx3 >= 0 && row3[taskTitleIdx3] != null ? String(row3[taskTitleIdx3]).trim() : '';
         if (!title3) continue;
+        if (isSampleTitle(title3)) continue;
 
         defs.push({
           department: dept3,
@@ -273,18 +280,17 @@ function doGet(e) {
     if (data.length < 2) return jsonResponse(result);
 
     var headers = data[0];
-    var typeCol = headers.indexOf('제출유형');
-    var deptCol = headers.indexOf('Department');
-    var idCol = headers.indexOf('Id');
-    var nameCol = headers.indexOf('ParticipantName');
-    var positionCol = headers.indexOf('ParticipantPosition');
-    var strategyIdCol = headers.indexOf('SelectedStrategyId');
-    var titleCol = headers.indexOf('StrategyTitle');
-    var wfCol = headers.indexOf('WorkflowSteps');
-    var taskCol = headers.indexOf('TaskCandidates');
-    // 기존 Questions 컬럼은 더 이상 사용하지 않지만, 시트 호환을 위해 인덱스만 유지
-    var createdCol = headers.indexOf('CreatedAt');
-    if (deptCol < 0) return jsonResponse({ error: '시트 컬럼이 올바르지 않습니다.' }, 500);
+    var typeCol = headers.indexOf('제출유형') >= 0 ? headers.indexOf('제출유형') : -1;
+    var deptCol = headers.indexOf('Department') >= 0 ? headers.indexOf('Department') : headers.indexOf('제출본부');
+    var idCol = headers.indexOf('Id') >= 0 ? headers.indexOf('Id') : 0;
+    var nameCol = headers.indexOf('ParticipantName') >= 0 ? headers.indexOf('ParticipantName') : headers.indexOf('참가자이름');
+    var positionCol = headers.indexOf('ParticipantPosition') >= 0 ? headers.indexOf('ParticipantPosition') : headers.indexOf('직급');
+    var strategyIdCol = headers.indexOf('SelectedStrategyId') >= 0 ? headers.indexOf('SelectedStrategyId') : headers.indexOf('선택전략ID');
+    var titleCol = headers.indexOf('StrategyTitle') >= 0 ? headers.indexOf('StrategyTitle') : (headers.indexOf('선택한 영역') >= 0 ? headers.indexOf('선택한 영역') : 6);
+    var wfCol = headers.indexOf('WorkflowSteps') >= 0 ? headers.indexOf('WorkflowSteps') : headers.indexOf('워크플로우');
+    var taskCol = headers.indexOf('TaskCandidates') >= 0 ? headers.indexOf('TaskCandidates') : headers.indexOf('과제후보');
+    var createdCol = headers.indexOf('CreatedAt') >= 0 ? headers.indexOf('CreatedAt') : headers.indexOf('제출일시');
+    if (deptCol < 0) return jsonResponse({ error: '시트에 Department 또는 제출본부 컬럼이 없습니다.' }, 500);
 
     var filterDept = (department || '').toLowerCase();
     for (var i = 1; i < data.length; i++) {
@@ -370,18 +376,29 @@ function doPost(e) {
       var dept3 = data.department != null ? String(data.department).trim() : '';
       var pName3 = data.participantName != null ? String(data.participantName) : '익명';
       var def = data.definition && typeof data.definition === 'object' ? data.definition : {};
-      s3Sheet.appendRow([
-        new Date().toISOString(),
-        dept3,
-        pName3,
-        taskId,
-        taskTitle,
-        def.reason || '',
-        def.expectedChange || '',
-        def.successCriteria || '',
-        def.implementationNotes || '',
-        def.keyMan || ''
-      ]);
+      var data3 = s3Sheet.getDataRange().getValues();
+      var headers3 = data3.length >= 1 ? data3[0] : [];
+      var colDept = headers3.indexOf('작성본부') >= 0 ? headers3.indexOf('작성본부') : 1;
+      var colName = headers3.indexOf('참가자이름') >= 0 ? headers3.indexOf('참가자이름') : 2;
+      var colTaskId = headers3.indexOf('과제ID') >= 0 ? headers3.indexOf('과제ID') : 3;
+      var rowIndex = -1;
+      for (var r = 1; r < data3.length; r++) {
+        var dr = data3[r];
+        var rowDept = (dr[colDept] != null ? String(dr[colDept]).trim() : '');
+        var rowName = (dr[colName] != null ? String(dr[colName]).trim() : '');
+        var rowTaskId = (dr[colTaskId] != null ? String(dr[colTaskId]).trim() : '');
+        if (rowTaskId === taskId && rowDept === dept3 && rowName === pName3) {
+          rowIndex = r + 1;
+          break;
+        }
+      }
+      var iso = new Date().toISOString();
+      var rowData = [iso, dept3, pName3, taskId, taskTitle, def.reason || '', def.expectedChange || '', def.successCriteria || '', def.implementationNotes || '', def.keyMan || ''];
+      if (rowIndex > 0) {
+        s3Sheet.getRange(rowIndex, 1, rowIndex, rowData.length).setValues([rowData]);
+      } else {
+        s3Sheet.appendRow(rowData);
+      }
       return jsonResponse({ ok: true });
     }
 
