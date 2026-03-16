@@ -82,6 +82,8 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
   padding: 16px;
   background: var(--color-background-secondary);
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 .prework-body { padding: 24px 28px; overflow-y: auto; }
 
@@ -559,6 +561,83 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
   align-items: center;
 }
 
+/* 사이드바 플로팅 다음 버튼 */
+.side-floating-next {
+  margin-top: 16px;
+  position: sticky;
+  bottom: 16px;
+}
+.btn-side-next {
+  width: 100%;
+  font-weight: 700;
+  font-size: 12px;
+  padding: 9px 14px;
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.18);
+}
+
+/* 세션2 아이디어 보드 (페들렛 스타일) */
+.idea-board-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+.idea-card {
+  background: #fff;
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--color-border-secondary);
+  padding: 12px 14px;
+  box-shadow: 0 2px 8px rgba(15,23,42,0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+}
+.idea-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+}
+.idea-card-title {
+  font-size: 13px;
+  font-weight: 700;
+  margin: 0;
+}
+.idea-card-meta {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+}
+.idea-badge-type {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border-secondary);
+  background: var(--color-background-secondary);
+  white-space: nowrap;
+}
+.idea-badge-type.extend {
+  border-color: #7dd3fc;
+  background: #e0f2fe;
+  color: var(--color-text-info);
+}
+.idea-badge-type.new {
+  border-color: #a7f3d0;
+  background: #ecfdf5;
+  color: var(--color-text-success);
+}
+.idea-card-body p {
+  margin: 0 0 4px;
+}
+.idea-card-label {
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+}
+.idea-card-text {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
 /* 푸터 */
 .app-footer {
   display: flex;
@@ -599,6 +678,107 @@ input, textarea, select { font-family: inherit; font-size: inherit; }
   transition: border-color 0.12s, background 0.12s;
 }
 .task-input-desc:focus { border-color: #86efac; background: #fff; outline: none; }
+
+/* 과제 도출용 초안 텍스트 박스 */
+.task-draft-textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: var(--border-radius-md);
+  border: 1.5px solid var(--color-border-secondary);
+  background: #fefce8;
+  font-size: 13px;
+  line-height: 1.8;
+  resize: vertical;
+}
+.task-draft-textarea:focus {
+  border-color: var(--color-text-warning);
+  background: #fffbeb;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(250, 204, 21, 0.25);
+}
+
+/* 모달 공통 */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15,23,42,0.45);
+  z-index: 40;
+}
+.modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+.modal-content {
+  width: 100%;
+  max-width: 520px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(15,23,42,0.35);
+  overflow: hidden;
+}
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border-primary);
+}
+.modal-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+.modal-close {
+  border: none;
+  background: transparent;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+.modal-body {
+  padding: 14px 16px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.modal-footer {
+  padding: 10px 16px;
+  border-top: 1px solid var(--color-border-primary);
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.modal-field {
+  margin-bottom: 10px;
+}
+.modal-field label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: var(--color-text-tertiary);
+}
+.modal-field input,
+.modal-field textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border-secondary);
+  font-size: 12px;
+}
+.modal-field textarea {
+  resize: vertical;
+}
+.idea-type-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
 
 /* 인쇄용 과제정의서 */
 @media print {

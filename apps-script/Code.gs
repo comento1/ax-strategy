@@ -143,6 +143,110 @@ function doGet(e) {
     }
   }
 
+  // 세션2 아이디어 목록 조회 (작성본부 기준 대시보드)
+  if (params.action === 'session2') {
+    try {
+      var ss2 = SpreadsheetApp.getActiveSpreadsheet();
+      var s2Sheet = ss2.getSheetByName(SESSION2_SHEET_NAME);
+      if (!s2Sheet) return jsonResponse({ ideas: [] });
+
+      var data2 = s2Sheet.getDataRange().getValues();
+      if (data2.length < 2) return jsonResponse({ ideas: [] });
+
+      var headers2 = data2[0];
+      var deptIdx = headers2.indexOf('작성본부');
+      var titleIdx = headers2.indexOf('과제제목');
+      var asIsIdx = headers2.indexOf('AS-IS');
+      var toBeIdx = headers2.indexOf('TO-BE');
+      var descIdx = headers2.indexOf('비고');
+      var typeIdx = headers2.indexOf('유형(임원 확장/신규)');
+      var createdIdx = headers2.indexOf('제출일시');
+      var nameIdx = headers2.indexOf('참가자이름');
+      var posIdx = headers2.indexOf('직급');
+
+      var filterDept2 = params.department ? String(params.department).trim() : '';
+      var ideas = [];
+
+      for (var r = 1; r < data2.length; r++) {
+        var row2 = data2[r];
+        var dept2 = deptIdx >= 0 && row2[deptIdx] != null ? String(row2[deptIdx]).trim() : '';
+        if (filterDept2 && dept2 !== filterDept2) continue;
+
+        var title2 = titleIdx >= 0 && row2[titleIdx] != null ? String(row2[titleIdx]).trim() : '';
+        if (!title2) continue;
+        // 워크숍 설계 시 사용한 샘플/테스트 행은 노출하지 않음
+        if (title2.indexOf('ZERO 브랜드 라인업 확대') >= 0 || title2 === '테스트' || title2 === '테스트 2') continue;
+
+        ideas.push({
+          department: dept2,
+          title: title2,
+          asIs: asIsIdx >= 0 && row2[asIsIdx] != null ? String(row2[asIsIdx]).trim() : '',
+          toBe: toBeIdx >= 0 && row2[toBeIdx] != null ? String(row2[toBeIdx]).trim() : '',
+          desc: descIdx >= 0 && row2[descIdx] != null ? String(row2[descIdx]).trim() : '',
+          type: typeIdx >= 0 && row2[typeIdx] != null ? String(row2[typeIdx]).trim() : '',
+          createdAt: createdIdx >= 0 && row2[createdIdx] != null ? String(row2[createdIdx]).trim() : '',
+          participantName: nameIdx >= 0 && row2[nameIdx] != null ? String(row2[nameIdx]).trim() : '',
+          participantPosition: posIdx >= 0 && row2[posIdx] != null ? String(row2[posIdx]).trim() : ''
+        });
+      }
+
+      return jsonResponse({ ideas: ideas });
+    } catch (err) {
+      return jsonResponse({ ideas: [], error: String(err.message) });
+    }
+  }
+
+  // 세션3 과제정의서 목록 조회 (작성본부 기준, 전체 공유용)
+  if (params.action === 'session3_definitions') {
+    try {
+      var ss3 = SpreadsheetApp.getActiveSpreadsheet();
+      var s3Sheet = ss3.getSheetByName(SESSION3_SHEET_NAME);
+      if (!s3Sheet) return jsonResponse({ definitions: [] });
+
+      var data3 = s3Sheet.getDataRange().getValues();
+      if (data3.length < 2) return jsonResponse({ definitions: [] });
+
+      var headers3 = data3[0];
+      var deptIdx3 = headers3.indexOf('작성본부');
+      var nameIdx3 = headers3.indexOf('참가자이름');
+      var createdIdx3 = headers3.indexOf('제출일시');
+      var taskIdIdx3 = headers3.indexOf('과제ID');
+      var taskTitleIdx3 = headers3.indexOf('과제명');
+      var reasonIdx3 = headers3.indexOf('개선이유');
+      var expectedIdx3 = headers3.indexOf('기대변화');
+      var successIdx3 = headers3.indexOf('성공기준');
+      var notesIdx3 = headers3.indexOf('구현시고려사항');
+
+      var filterDept3 = params.department ? String(params.department).trim() : '';
+      var defs = [];
+
+      for (var r3 = 1; r3 < data3.length; r3++) {
+        var row3 = data3[r3];
+        var dept3 = deptIdx3 >= 0 && row3[deptIdx3] != null ? String(row3[deptIdx3]).trim() : '';
+        if (filterDept3 && dept3 !== filterDept3) continue;
+
+        var title3 = taskTitleIdx3 >= 0 && row3[taskTitleIdx3] != null ? String(row3[taskTitleIdx3]).trim() : '';
+        if (!title3) continue;
+
+        defs.push({
+          department: dept3,
+          participantName: nameIdx3 >= 0 && row3[nameIdx3] != null ? String(row3[nameIdx3]).trim() : '',
+          createdAt: createdIdx3 >= 0 && row3[createdIdx3] != null ? String(row3[createdIdx3]).trim() : '',
+          taskId: taskIdIdx3 >= 0 && row3[taskIdIdx3] != null ? String(row3[taskIdIdx3]).trim() : '',
+          taskTitle: title3,
+          reason: reasonIdx3 >= 0 && row3[reasonIdx3] != null ? String(row3[reasonIdx3]).trim() : '',
+          expectedChange: expectedIdx3 >= 0 && row3[expectedIdx3] != null ? String(row3[expectedIdx3]).trim() : '',
+          successCriteria: successIdx3 >= 0 && row3[successIdx3] != null ? String(row3[successIdx3]).trim() : '',
+          implementationNotes: notesIdx3 >= 0 && row3[notesIdx3] != null ? String(row3[notesIdx3]).trim() : ''
+        });
+      }
+
+      return jsonResponse({ definitions: defs });
+    } catch (err) {
+      return jsonResponse({ definitions: [], error: String(err.message) });
+    }
+  }
+
   // 사전과제 목록 (department=XXX) — 제출유형이 '사전과제'인 행만
   var result = [];
   var department = params.department ? String(params.department).trim() : '';
@@ -233,6 +337,9 @@ function doPost(e) {
       var pPos = data.participantPosition != null ? String(data.participantPosition) : '';
       var createdAt = new Date().toISOString();
       items.forEach(function(item) {
+        var typeLabel = '';
+        if (item.type === 'extend') typeLabel = '임원 전략 확장';
+        else if (item.type === 'new') typeLabel = '신규 과제';
         s2Sheet.appendRow([
           createdAt,
           dept,
@@ -241,7 +348,8 @@ function doPost(e) {
           item.title || '',
           item.asIs || '',
           item.toBe || '',
-          item.desc || ''
+          item.desc || '',
+          typeLabel
         ]);
       });
       return jsonResponse({ ok: true });
@@ -319,8 +427,8 @@ function getSession2Sheet() {
   var sheet = ss.getSheetByName(SESSION2_SHEET_NAME);
   if (!sheet) {
     sheet = ss.insertSheet(SESSION2_SHEET_NAME);
-    sheet.appendRow(['제출일시', '작성본부', '참가자이름', '직급', '과제제목', 'AS-IS', 'TO-BE', '비고']);
-    sheet.getRange(1, 1, 1, 8).setFontWeight('bold');
+    sheet.appendRow(['제출일시', '작성본부', '참가자이름', '직급', '과제제목', 'AS-IS', 'TO-BE', '비고', '유형(임원 확장/신규)']);
+    sheet.getRange(1, 1, 1, 9).setFontWeight('bold');
   }
   return sheet;
 }

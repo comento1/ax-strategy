@@ -130,16 +130,8 @@
   function renderTaskCandidateList() {
     var container = document.getElementById('taskCandidateList');
     if (!container) return;
-    var list = state.prework.taskCandidates;
-    // 빈 항목이 없거나 모두 비어있으면 기본 1개 보장
-    if (!list || list.length === 0) {
-      list = [{
-        id: id(),
-        title: '',
-        desc: ''
-      }];
-      state.prework.taskCandidates = list;
-    }
+    var list = state.prework.taskCandidates || [];
+    state.prework.taskCandidates = list;
     container.innerHTML = list.map(function (t, i) {
       var prioClass = i === 0 ? 'prio-1' : 'prio-n';
       var prioText = '과제 ' + (i + 1);
@@ -321,6 +313,35 @@
     });
   }
 
+  // 과제 도출 텍스트를 과제 카드로 변환
+  function materializeTaskFromDraft() {
+    var ta = document.getElementById('taskDraftInput');
+    if (!ta) return;
+    var raw = (ta.value || '').trim();
+    if (!raw) return;
+
+    // 첫 줄을 제목, 나머지를 설명으로 사용
+    var lines = raw.split(/\r?\n/).filter(function (l) { return l.trim(); });
+    if (lines.length === 0) return;
+    var title = lines[0].replace(/^[-•]\s*/, '').trim();
+    var desc = lines.slice(1).join('\n').trim();
+
+    state.prework.taskCandidates = state.prework.taskCandidates || [];
+    state.prework.taskCandidates.push({
+      id: id(),
+      title: title,
+      desc: desc
+    });
+    renderTaskCandidateList();
+    renderSession1ICE();
+    saveState();
+
+    // 초안은 비우고, 사용자에게 피드백
+    ta.value = '';
+    autoResizeTextarea(ta);
+    alert('입력하신 과제가 아래 목록에 추가되었습니다.');
+  }
+
   // ----- 세션1 -----
   function getTasksForICE() {
     return state.prework.taskCandidates.concat(
@@ -393,12 +414,6 @@
       return;
     }
     var safe = list.filter(function (item) { return !isSamplePreworkItem(item); });
-    // ─── 요청 7: 본부 데이터 격리 — 현재 본부와 일치하는 항목만 표시 ───
-    if (currentDepartment) {
-      safe = safe.filter(function (item) {
-        return !item.department || item.department === currentDepartment;
-      });
-    }
     if (safe.length === 0) {
       container.innerHTML = '<p class="section-sub">현재 본부에 대한 유효한 사전과제 제출 내역이 없습니다.</p>';
       return;
@@ -446,15 +461,17 @@
   }
 
   function loadDepartmentPreworkList() {
+    var selectedDeptEl = document.getElementById('deptPreworkSelect');
+    var selectedDept = selectedDeptEl && selectedDeptEl.value ? selectedDeptEl.value : currentDepartment;
     var container = document.getElementById('departmentPreworkList');
     if (!container) return;
-    if (!API_BASE || !currentDepartment) {
+    if (!API_BASE || !selectedDept) {
       container.innerHTML = '<p class="section-sub">본부 또는 API 설정이 없어 사전과제 목록을 불러올 수 없습니다.</p>';
       return;
     }
     container.innerHTML = '<p class="section-sub">사전과제 목록을 불러오는 중입니다...</p>';
-    // ─── department 파라미터로 본부 필터링 (서버 측) ───
-    fetch(API_BASE + '?department=' + encodeURIComponent(currentDepartment))
+    // department 파라미터로 본부 필터링 (서버 측)
+    fetch(API_BASE + '?department=' + encodeURIComponent(selectedDept))
       .then(function (res) { return res.json(); })
       .then(function (json) {
         renderDepartmentPreworkList(json);
@@ -574,6 +591,126 @@
     renderSession1ICE();
   }
 
+  // ----- 세션2 아이디어 대시보드 -----
+  function renderSession2Ideas(ideas) {
+    var board = document.getElementById('session2IdeaBoard');
+    if (!board) return;
+    if (!Array.isArray(ideas) || ideas.length === 0) {
+      board.innerHTML = '<p class="section-sub">아직 등록된 아이디어가 없습니다. 우측 상단의 아이디어 등록하기 버튼을 눌러 첫 아이디어를 남겨보세요.</p>';
+      return;
+    }
+    board.innerHTML = ideas.map(function (it) {
+      var typeClass = '';
+      var typeLabel = it.type || '';
+      if (typeLabel.indexOf('확장') >= 0) typeClass = 'extend';
+      else if (typeLabel.indexOf('신규') >= 0) typeClass = 'new';
+      return '' +
+        '<article class="idea-card">' +
+        '<header class="idea-card-header">' +
+        '<div>' +
+        '<p class="idea-card-title">' + escapeHtml(it.title || '') + '</p>' +
+        '<p class="idea-card-meta">' +
+        (it.department ? escapeHtml(it.department) + ' · ' : '') +
+        (it.participantName || '익명') +
+        (it.participantPosition ? ' · ' + escapeHtml(it.participantPosition) : '') +
+        '</p>' +
+        '</div>' +
+        (typeLabel ? '<span class="idea-badge-type ' + typeClass + '">' + escapeHtml(typeLabel) + '</span>' : '') +
+        '</header>' +
+        '<div class="idea-card-body">' +
+        (it.asIs ? '<p><span class="idea-card-label">AS-IS</span><br/><span class="idea-card-text">' + escapeHtml(it.asIs) + '</span></p>' : '') +
+        (it.toBe ? '<p><span class="idea-card-label">TO-BE</span><br/><span class="idea-card-text">' + escapeHtml(it.toBe) + '</span></p>' : '') +
+        (it.desc ? '<p><span class="idea-card-label">메모</span><br/><span class="idea-card-text">' + escapeHtml(it.desc) + '</span></p>' : '') +
+        '</div>' +
+        '</article>';
+    }).join('');
+  }
+
+  function loadSession2Ideas() {
+    var board = document.getElementById('session2IdeaBoard');
+    if (!board || !API_BASE) return;
+    var sel = document.getElementById('session2DeptSelect');
+    var dept = (sel && sel.value) ? sel.value : currentDepartment;
+    if (!dept) {
+      board.innerHTML = '<p class="section-sub">본부 정보가 없어 아이디어를 불러올 수 없습니다.</p>';
+      return;
+    }
+    board.innerHTML = '<p class="section-sub">아이디어를 불러오는 중입니다...</p>';
+    fetch(API_BASE + '?action=session2&department=' + encodeURIComponent(dept))
+      .then(function (res) { return res.json(); })
+      .then(function (json) {
+        renderSession2Ideas(json && Array.isArray(json.ideas) ? json.ideas : []);
+      })
+      .catch(function () {
+        board.innerHTML = '<p class="section-sub">아이디어를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.</p>';
+      });
+  }
+
+  function openIdeaModal() {
+    var backdrop = document.getElementById('ideaModalBackdrop');
+    var modal = document.getElementById('ideaModal');
+    if (!backdrop || !modal) return;
+    backdrop.hidden = false;
+    modal.hidden = false;
+  }
+
+  function closeIdeaModal() {
+    var backdrop = document.getElementById('ideaModalBackdrop');
+    var modal = document.getElementById('ideaModal');
+    if (!backdrop || !modal) return;
+    backdrop.hidden = true;
+    modal.hidden = true;
+  }
+
+  function submitIdea() {
+    if (!API_BASE) {
+      alert('서버 API 설정이 없어 아이디어를 저장할 수 없습니다.');
+      return;
+    }
+    var titleEl = document.getElementById('ideaTitle');
+    var asIsEl = document.getElementById('ideaAsIs');
+    var toBeEl = document.getElementById('ideaToBe');
+    var typeInput = document.querySelector('input[name="ideaType"]:checked');
+    var title = titleEl && titleEl.value.trim();
+    var asIs = asIsEl && asIsEl.value.trim();
+    var toBe = toBeEl && toBeEl.value.trim();
+    var type = typeInput ? typeInput.value : 'extend';
+    if (!title) {
+      alert('아이디어 제목을 입력해주세요.');
+      return;
+    }
+    var dept = currentDepartment || '';
+    var payload = {
+      action: 'session2',
+      department: dept,
+      participantName: currentParticipantName || '',
+      participantPosition: currentParticipantPosition || '',
+      items: [{
+        title: title,
+        asIs: asIs,
+        toBe: toBe,
+        desc: '',
+        type: type
+      }]
+    };
+    fetch(API_BASE, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(function (res) { return res.json(); })
+      .then(function () {
+        closeIdeaModal();
+        // 입력값 초기화
+        if (titleEl) titleEl.value = '';
+        if (asIsEl) asIsEl.value = '';
+        if (toBeEl) toBeEl.value = '';
+        loadSession2Ideas();
+      })
+      .catch(function () {
+        alert('아이디어 저장 중 오류가 발생했습니다.');
+      });
+  }
+
   // ----- 세션3 -----
   function getFinalTaskList() {
     var confirmedIds = state.session1.confirmedIds || [];
@@ -679,6 +816,49 @@
     });
   }
 
+  function renderSession3Saved(defs) {
+    var container = document.getElementById('session3SavedBoard');
+    if (!container) return;
+    if (!Array.isArray(defs) || defs.length === 0) {
+      container.innerHTML = '<p class="section-sub">아직 저장된 과제정의서가 없습니다. 과제정의서를 작성한 뒤 저장하기를 눌러 공유할 수 있습니다.</p>';
+      return;
+    }
+    container.innerHTML = defs.map(function (d) {
+      return '' +
+        '<article class="def-card">' +
+        '<p class="section-title" style="margin-bottom:4px;">' + escapeHtml(d.taskTitle || '') + '</p>' +
+        '<p style="font-size:11px;color:var(--color-text-tertiary);margin:0 0 8px;">' +
+        (d.department ? escapeHtml(d.department) + ' · ' : '') +
+        (d.participantName || '익명') +
+        (d.createdAt ? ' · ' + escapeHtml(d.createdAt) : '') +
+        '</p>' +
+        (d.reason ? '<p><span class="idea-card-label">개선이유</span><br/><span class="idea-card-text">' + escapeHtml(d.reason) + '</span></p>' : '') +
+        (d.expectedChange ? '<p><span class="idea-card-label">기대변화</span><br/><span class="idea-card-text">' + escapeHtml(d.expectedChange) + '</span></p>' : '') +
+        (d.successCriteria ? '<p><span class="idea-card-label">성공기준</span><br/><span class="idea-card-text">' + escapeHtml(d.successCriteria) + '</span></p>' : '') +
+        (d.implementationNotes ? '<p><span class="idea-card-label">구현시 고려사항</span><br/><span class="idea-card-text">' + escapeHtml(d.implementationNotes) + '</span></p>' : '') +
+        '</article>';
+    }).join('');
+  }
+
+  function loadSession3Saved() {
+    var container = document.getElementById('session3SavedBoard');
+    if (!container || !API_BASE) return;
+    var dept = currentDepartment || '';
+    if (!dept) {
+      container.innerHTML = '<p class="section-sub">본부 정보가 없어 저장된 과제정의서를 불러올 수 없습니다.</p>';
+      return;
+    }
+    container.innerHTML = '<p class="section-sub">저장된 과제정의서를 불러오는 중입니다...</p>';
+    fetch(API_BASE + '?action=session3_definitions&department=' + encodeURIComponent(dept))
+      .then(function (res) { return res.json(); })
+      .then(function (json) {
+        renderSession3Saved(json && Array.isArray(json.definitions) ? json.definitions : []);
+      })
+      .catch(function () {
+        container.innerHTML = '<p class="section-sub">저장된 과제정의서를 불러오지 못했습니다.</p>';
+      });
+  }
+
   // ----- 단계 전환 -----
   function setPhase(phase) {
     state.currentPhase = phase;
@@ -697,25 +877,13 @@
       renderSharedWorkflowSummary();
       loadDepartmentPreworkList();
       renderSession1ICE();
-      // 워크플로우 참조 패널 초기화 (세션1)
-      var wfRefContainerS1 = document.getElementById('sharedWorkflowSummary');
-      if (wfRefContainerS1 && !wfRefContainerS1.querySelector('.wf-reference-toggle')) {
-        // 이미 렌더링된 요약이 있을 수 있으므로 앞부분에 추가하거나 별도 컨테이너 사용
-      }
-      
-      // 사전과제 단계 내에서도 "과제 후보 목록" 상단에 표시
-      var preworkWfRefContainer = document.getElementById('wfReferenceContainer');
-      if (preworkWfRefContainer && !preworkWfRefContainer.querySelector('.wf-reference-toggle')) {
-        buildWfReferenceToggle(preworkWfRefContainer);
-      }
     }
-    if (phase === 'session2') { renderSession2(); }
-    if (phase === 'session3') { renderSession3(); }
+    if (phase === 'session2') { renderSession2(); loadSession2Ideas(); }
+    if (phase === 'session3') { renderSession3(); loadSession3Saved(); }
     saveState();
   }
 
   function init() {
-    loadState();
     if (document.getElementById('appTitle') && seed.workshopName) document.getElementById('appTitle').textContent = seed.workshopName;
     var params = new URLSearchParams(window.location.search);
     var workshop = params.get('workshop');
@@ -724,7 +892,7 @@
     currentParticipantName = params.get('name') || '';
     currentParticipantPosition = params.get('position') || '';
 
-    // Load state AFTER currentDepartment is set to ensure we use the correct storage key
+    // currentDepartment 설정 후 상태 로드 (부서별 저장 분리)
     loadState();
     var labelEl = document.getElementById('workshopGroupLabel');
     if (labelEl && (workshop || group || currentDepartment)) {
@@ -774,6 +942,10 @@
     // AI 과제 제안
     var btnAI = document.getElementById('btnAISuggest');
     if (btnAI) btnAI.addEventListener('click', handleAISuggest);
+
+    // 과제 도출 → 과제화하기
+    var btnMat = document.getElementById('btnMaterializeTask');
+    if (btnMat) btnMat.addEventListener('click', materializeTaskFromDraft);
 
     // 다음: 과제 후보 목록 → (상단 버튼)
     var btnGoTaskTop = document.getElementById('btnGoTaskSectionTop');
@@ -840,6 +1012,86 @@
     if (navS1FromS2) navS1FromS2.addEventListener('click', function () { setPhase('session1'); });
     var navS3FromS2 = document.getElementById('navToSession3FromS2');
     if (navS3FromS2) navS3FromS2.addEventListener('click', function () { setPhase('session3'); });
+
+    // 사이드바 플로팅 "다음" 버튼 (사전과제: 과제 후보 섹션으로 스크롤)
+    var sideNextPre = document.getElementById('btnSideNextPrework');
+    if (sideNextPre) {
+      sideNextPre.addEventListener('click', function () {
+        var el = document.getElementById('taskCandidateSection');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    }
+
+    // 세션1 사전과제 본부 선택 드롭다운 초기화
+    (function initDeptSelect() {
+      var sel = document.getElementById('deptPreworkSelect');
+      if (!sel || !API_BASE) return;
+      fetch(API_BASE + '?action=strategies')
+        .then(function (res) { return res.json(); })
+        .then(function (json) {
+          var depts = (json && Array.isArray(json.departments)) ? json.departments : [];
+          if (depts.length === 0) {
+            if (currentDepartment) {
+              depts = [currentDepartment];
+            } else {
+              return;
+            }
+          }
+          sel.innerHTML = depts.map(function (d) {
+            var selected = (d === currentDepartment) ? ' selected' : '';
+            return '<option value="' + escapeHtml(d) + '"' + selected + '>' + escapeHtml(d) + '</option>';
+          }).join('');
+          sel.addEventListener('change', function () {
+            loadDepartmentPreworkList();
+          });
+        })
+        .catch(function () {
+          // 실패 시 기본 본부만 사용
+          if (currentDepartment && sel.options.length === 0) {
+            sel.innerHTML = '<option value="' + escapeHtml(currentDepartment) + '">' + escapeHtml(currentDepartment) + '</option>';
+          }
+        });
+    })();
+
+    // 세션2 아이디어 본부 선택 드롭다운 초기화
+    (function initSession2DeptSelect() {
+      var sel = document.getElementById('session2DeptSelect');
+      if (!sel || !API_BASE) return;
+      fetch(API_BASE + '?action=strategies')
+        .then(function (res) { return res.json(); })
+        .then(function (json) {
+          var depts = (json && Array.isArray(json.departments)) ? json.departments : [];
+          if (depts.length === 0) {
+            if (currentDepartment) {
+              depts = [currentDepartment];
+            } else {
+              return;
+            }
+          }
+          sel.innerHTML = depts.map(function (d) {
+            var selected = (d === currentDepartment) ? ' selected' : '';
+            return '<option value="' + escapeHtml(d) + '"' + selected + '>' + escapeHtml(d) + '</option>';
+          }).join('');
+          sel.addEventListener('change', function () {
+            loadSession2Ideas();
+          });
+        })
+        .catch(function () {
+          if (currentDepartment && sel.options.length === 0) {
+            sel.innerHTML = '<option value="' + escapeHtml(currentDepartment) + '">' + escapeHtml(currentDepartment) + '</option>';
+          }
+        });
+    })();
+
+    // 세션2 아이디어 모달 이벤트
+    var btnOpenIdea = document.getElementById('btnOpenIdeaModal');
+    if (btnOpenIdea) btnOpenIdea.addEventListener('click', openIdeaModal);
+    var btnCloseIdea = document.getElementById('btnCloseIdeaModal');
+    if (btnCloseIdea) btnCloseIdea.addEventListener('click', closeIdeaModal);
+    var btnCancelIdea = document.getElementById('btnCancelIdea');
+    if (btnCancelIdea) btnCancelIdea.addEventListener('click', closeIdeaModal);
+    var btnSubmitIdea = document.getElementById('btnSubmitIdea');
+    if (btnSubmitIdea) btnSubmitIdea.addEventListener('click', submitIdea);
 
     setPhase(state.currentPhase);
   }

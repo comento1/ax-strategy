@@ -40,6 +40,10 @@
               <div class="guide-row"><span class="guide-n">3</span><p class="guide-text">각 단계에서 <strong>AI 적용 가능 과제</strong>를 도출하세요</p></div>
               <div class="guide-row" style="margin-bottom:0"><span class="guide-n">4</span><p class="guide-text">강사에게 <strong>질문사항</strong>을 미리 등록하세요</p></div>
             </div>
+            <!-- 사이드바 플로팅 다음 버튼 (모든 사이드바 페이지 공통) -->
+            <div class="side-floating-next">
+              <button type="button" class="btn btn-primary btn-side-next" id="btnSideNextPrework">다음: 과제 후보로 이동</button>
+            </div>
           </aside>
           <div class="prework-body">
             <div class="info-banner">
@@ -95,9 +99,6 @@
 
             <!-- 과제 후보 목록 -->
             <div class="section-block" id="taskCandidateSection">
-              <!-- 워크플로우 참고 (접힘/펼침) - JS에서 동적 삽입됨 -->
-              <div id="wfReferenceContainer"></div>
-
               <div class="task-candidate-header">
                 <div>
                   <p class="section-title major-step">2단계: 과제 후보 목록 도출하기</p>
@@ -108,10 +109,23 @@
               <!-- AI 과제 제안 받기 버튼 (시각적 위계 강화) -->
               <button type="button" class="btn btn-ai-suggest" id="btnAISuggest">
                 <span class="ai-suggest-icon">✨</span>
-                AI 과제 제안 받기 (추천)
+                워크플로우 기반으로 AI 과제 제안 받기
                 <span class="ai-suggest-badge">AI</span>
               </button>
               <div id="aiSuggestResult" class="ai-suggest-result" hidden></div>
+
+              <!-- 워크플로우 참고 (접힘/펼침) - JS에서 동적 삽입됨 -->
+              <div id="wfReferenceContainer"></div>
+
+              <!-- 과제 도출 작성 영역 -->
+              <div class="section-block" style="margin-top:16px;">
+                <p class="section-title">과제 도출하기</p>
+                <p class="section-sub">위 워크플로우와 AI 제안을 참고해, 떠오르는 과제를 아래에 자유롭게 정리한 뒤 <strong>과제화하기</strong> 버튼을 눌러 과제 목록으로 내려보낼 수 있습니다.</p>
+                <textarea id="taskDraftInput" class="task-draft-textarea" placeholder="예)\n- 외부 데이터 수집·정제 전 과정을 자동화해 리포트 작성 시간을 단축\n- 실시간 캠페인 성과 대시보드를 구축해 의사결정 속도 향상" rows="4"></textarea>
+                <div style="margin-top:8px; text-align:right;">
+                  <button type="button" class="btn btn-primary btn-sm" id="btnMaterializeTask">과제화하기</button>
+                </div>
+              </div>
 
               <div id="taskCandidateList"></div>
               <div class="add-row-enhanced" id="addTaskRow">
@@ -168,7 +182,11 @@
           </div>
           <div class="section-block">
             <h3>본부 내 제출된 사전과제 목록</h3>
-            <p class="section-sub">현재 URL에 지정된 본부에 대해, 사전에 제출된 워크플로우 기반 과제가 카드 형태로 요약되어 표시됩니다.</p>
+            <p class="section-sub">아래 드롭다운에서 본부를 선택해, 해당 본부에서 제출한 사전과제(워크플로우·과제 후보·질문)를 카드 형태로 조회할 수 있습니다. 기본값은 현재 접속한 본부입니다.</p>
+            <div style="margin-bottom:10px; display:flex; align-items:center; gap:8px;">
+              <label for="deptPreworkSelect" style="font-size:12px; color:var(--color-text-secondary);">본부 선택</label>
+              <select id="deptPreworkSelect" style="font-size:12px; padding:4px 8px; border-radius:6px; border:1px solid var(--color-border-secondary); min-width:160px;"></select>
+            </div>
             <div id="departmentPreworkList" class="prework-card-grid"></div>
           </div>
           <div class="section-block">
@@ -212,6 +230,21 @@
               <p class="body">Track A: 세션1 결과 기반 추가 아이디에이션 / Track B: 임원 범위 외 신규 과제 발굴 후 우선순위·워크플로우 분석</p>
             </div>
           </div>
+
+          <!-- 아이디어 작성 대시보드 -->
+          <div class="section-block">
+            <p class="section-title major-step">아이디어 작성</p>
+            <p class="section-sub">본부별로 등록된 아이디어를 한눈에 보고, 우측 상단의 버튼을 눌러 새로운 아이디어를 등록할 수 있습니다.</p>
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; gap:8px;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <label for="session2DeptSelect" style="font-size:12px; color:var(--color-text-secondary);">본부 선택</label>
+                <select id="session2DeptSelect" style="font-size:12px; padding:4px 8px; border-radius:6px; border:1px solid var(--color-border-secondary); min-width:160px;"></select>
+              </div>
+              <button type="button" class="btn btn-primary btn-sm" id="btnOpenIdeaModal">아이디어 등록하기</button>
+            </div>
+            <div id="session2IdeaBoard" class="idea-board-grid"></div>
+          </div>
+
           <div class="track-tabs">
             <button type="button" class="track-tab active" data-track="A">Track A · 임원 범위 확장</button>
             <button type="button" class="track-tab" data-track="B">Track B · 신규 과제 발굴</button>
@@ -254,9 +287,14 @@
             <p class="section-sub">아래 양식에 맞춰 각 과제를 정리하세요. 인쇄 또는 PDF 저장으로 인계할 수 있습니다.</p>
             <div id="definitionForms"></div>
           </div>
+          <div class="section-block">
+            <h3>본부 전체 저장된 과제정의서</h3>
+            <p class="section-sub">같은 본부 구성원이 저장한 과제정의서를 함께 조회할 수 있습니다. (읽기 전용)</p>
+            <div id="session3SavedBoard"></div>
+          </div>
           <div class="section-block no-print">
             <div class="phase-nav-row">
-              <button type="button" class="btn" id="saveDefinitions">저장</button>
+              <button type="button" class="btn" id="saveDefinitions">저장하기</button>
               <button type="button" class="btn btn-primary" id="exportPrint">과제정의서 인쇄 / PDF 저장</button>
             </div>
           </div>
@@ -271,6 +309,42 @@
         <button type="button" class="btn btn-primary" id="btnSubmitPrework">사전과제 제출 →</button>
       </div>
     </footer>
+  </div>
+
+  <!-- 세션2 아이디어 등록 모달 -->
+  <div id="ideaModalBackdrop" class="modal-backdrop" hidden></div>
+  <div id="ideaModal" class="modal" hidden>
+    <div class="modal-content">
+      <div class="modal-header">
+        <p class="modal-title">아이디어 등록하기</p>
+        <button type="button" class="modal-close" id="btnCloseIdeaModal">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-field">
+          <label for="ideaTitle">아이디어 제목</label>
+          <input type="text" id="ideaTitle" placeholder="예: RPA 기반 외부·사내 데이터 수집 자동화" />
+        </div>
+        <div class="modal-field">
+          <label for="ideaAsIs">AS-IS (현재 불편한 점·문제)</label>
+          <textarea id="ideaAsIs" rows="3" placeholder="현재 어떤 방식으로 일을 하고 있으며, 어떤 부분이 비효율적/불편한지 적어주세요."></textarea>
+        </div>
+        <div class="modal-field">
+          <label for="ideaToBe">TO-BE (바꾸고 싶은 방향·목표)</label>
+          <textarea id="ideaToBe" rows="3" placeholder="AI를 활용해 어떤 모습으로 바꾸고 싶은지, 기대하는 효과를 적어주세요."></textarea>
+        </div>
+        <div class="modal-field">
+          <label>과제 유형</label>
+          <div class="idea-type-row">
+            <label><input type="radio" name="ideaType" value="extend" checked /> 임원진 AX 전략을 확장하는 주제</label>
+            <label><input type="radio" name="ideaType" value="new" /> 새로운 주제(임원 전략 외 신규)</label>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn" id="btnCancelIdea">취소</button>
+        <button type="button" class="btn btn-primary" id="btnSubmitIdea">아이디어 저장</button>
+      </div>
+    </div>
   </div>
 
   <script src="js/data.js"></script>
