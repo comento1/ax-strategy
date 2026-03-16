@@ -247,6 +247,8 @@
 .session2-check-wrap { display: flex; align-items: center; gap: 6px; flex-shrink: 0; margin: 0; }
 .session2-check-wrap input { cursor: pointer; }
 .session2-check-label { font-size: 12px; color: var(--color-text-secondary); cursor: pointer; }
+.session2-field-label { display: block; font-size: 12px; font-weight: 600; color: var(--color-text-secondary); margin-top: 12px; margin-bottom: 4px; }
+.session2-registered.session2-selected { border-color: var(--color-text-info); background: var(--color-background-info); }
 
 /* 세션3 과제정의서: 좌측 폼 / 우측 사이드바 */
 .session3-def-layout { display: grid; grid-template-columns: 1fr 320px; gap: 24px; align-items: start; }

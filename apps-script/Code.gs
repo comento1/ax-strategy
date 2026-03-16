@@ -11,17 +11,20 @@ var SHEET_NAME = 'Prework';
 var LOGO_SHEET_NAME = 'logo';
 var STRATEGY_SHEET_NAME = 'strategy';
 var QUESTIONS_SHEET_NAME = 'Questions';
+var SESSION2_SHEET_NAME = 'Session2Selections';
+var SESSION3_SHEET_NAME = 'Session3Definitions';
 
 function getSheet() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(SHEET_NAME);
   if (!sheet) {
     sheet = ss.insertSheet(SHEET_NAME);
+    // 제목행(첫 번째 행): 제출유형 포함
     sheet.appendRow([
-      'Id', 'Department', 'ParticipantName', 'ParticipantPosition', 'SelectedStrategyId', 'StrategyTitle',
+      '제출유형', 'Id', 'Department', 'ParticipantName', 'ParticipantPosition', 'SelectedStrategyId', 'StrategyTitle',
       'WorkflowSteps', 'TaskCandidates', 'Questions', 'CreatedAt'
     ]);
-    sheet.getRange(1, 1, 1, 10).setFontWeight('bold');
+    sheet.getRange(1, 1, 1, 11).setFontWeight('bold');
   }
   return sheet;
 }
@@ -140,7 +143,7 @@ function doGet(e) {
     }
   }
 
-  // 사전과제 목록 (department=XXX)
+  // 사전과제 목록 (department=XXX) — 제출유형이 '사전과제'인 행만
   var result = [];
   var department = params.department ? String(params.department).trim() : '';
   try {
@@ -149,6 +152,7 @@ function doGet(e) {
     if (data.length < 2) return jsonResponse(result);
 
     var headers = data[0];
+    var typeCol = headers.indexOf('제출유형');
     var idCol = headers.indexOf('Id');
     var deptCol = headers.indexOf('Department');
     var nameCol = headers.indexOf('ParticipantName');
@@ -164,6 +168,8 @@ function doGet(e) {
     var filterDept = department || 'default';
     for (var i = 1; i < data.length; i++) {
       var row = data[i];
+      var rowType = typeCol >= 0 && row[typeCol] != null ? String(row[typeCol]).trim() : '사전과제';
+      if (typeCol >= 0 && rowType !== '사전과제') continue;
       var rowDept = row[deptCol] ? String(row[deptCol]).trim() : '';
       if (rowDept !== filterDept) continue;
 
@@ -207,6 +213,49 @@ function doPost(e) {
       return jsonResponse({ ok: true });
     }
 
+    if (data.action === 'session2') {
+      var s2Sheet = getSession2Sheet();
+      var items = Array.isArray(data.items) ? data.items : [];
+      var dept = data.department != null ? String(data.department).trim() : '';
+      var pName = data.participantName != null ? String(data.participantName) : '익명';
+      var pPos = data.participantPosition != null ? String(data.participantPosition) : '';
+      var createdAt = new Date().toISOString();
+      items.forEach(function(item) {
+        s2Sheet.appendRow([
+          createdAt,
+          dept,
+          pName,
+          pPos,
+          item.title || '',
+          item.asIs || '',
+          item.toBe || '',
+          item.desc || ''
+        ]);
+      });
+      return jsonResponse({ ok: true });
+    }
+
+    if (data.action === 'session3_definitions') {
+      var s3Sheet = getSession3Sheet();
+      var taskId = data.taskId != null ? String(data.taskId) : '';
+      var taskTitle = data.taskTitle != null ? String(data.taskTitle) : '';
+      var dept3 = data.department != null ? String(data.department).trim() : '';
+      var pName3 = data.participantName != null ? String(data.participantName) : '익명';
+      var def = data.definition && typeof data.definition === 'object' ? data.definition : {};
+      s3Sheet.appendRow([
+        new Date().toISOString(),
+        dept3,
+        pName3,
+        taskId,
+        taskTitle,
+        def.reason || '',
+        def.expectedChange || '',
+        def.successCriteria || '',
+        def.implementationNotes || ''
+      ]);
+      return jsonResponse({ ok: true });
+    }
+
     var department = data.department != null ? String(data.department).trim() : 'default';
     var participantName = data.participantName != null ? String(data.participantName) : '익명';
     var participantPosition = data.participantPosition != null ? String(data.participantPosition) : '';
@@ -220,18 +269,21 @@ function doPost(e) {
     var createdAt = new Date().toISOString();
 
     var sheet = getSheet();
-    sheet.appendRow([
-      id,
-      department,
-      participantName,
-      participantPosition,
-      selectedStrategyId,
-      strategyTitle,
-      workflowStepsToText(workflowSteps),
-      taskCandidatesToText(taskCandidates),
-      questionsToText(questions),
-      createdAt
-    ]);
+    var headers = sheet.getLastRow() >= 1 ? sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0] : [];
+    var hasTypeCol = headers.indexOf('제출유형') >= 0;
+    if (hasTypeCol) {
+      sheet.appendRow([
+        '사전과제', id, department, participantName, participantPosition,
+        selectedStrategyId, strategyTitle, workflowStepsToText(workflowSteps),
+        taskCandidatesToText(taskCandidates), questionsToText(questions), createdAt
+      ]);
+    } else {
+      sheet.appendRow([
+        id, department, participantName, participantPosition,
+        selectedStrategyId, strategyTitle, workflowStepsToText(workflowSteps),
+        taskCandidatesToText(taskCandidates), questionsToText(questions), createdAt
+      ]);
+    }
 
     return jsonResponse({ ok: true, id: id });
   } catch (err) {
@@ -246,6 +298,31 @@ function getQuestionsSheet() {
     sheet = ss.insertSheet(QUESTIONS_SHEET_NAME);
     sheet.appendRow(['제출일시', '작성본부', '참가자이름', '직급', '질문내용']);
     sheet.getRange(1, 1, 1, 5).setFontWeight('bold');
+  }
+  return sheet;
+}
+
+function getSession2Sheet() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SESSION2_SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(SESSION2_SHEET_NAME);
+    sheet.appendRow(['제출일시', '작성본부', '참가자이름', '직급', '과제제목', 'AS-IS', 'TO-BE', '비고']);
+    sheet.getRange(1, 1, 1, 8).setFontWeight('bold');
+  }
+  return sheet;
+}
+
+function getSession3Sheet() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SESSION3_SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(SESSION3_SHEET_NAME);
+    sheet.appendRow([
+      '제출일시', '작성본부', '참가자이름', '과제ID', '과제명',
+      '개선이유', '기대변화', '성공기준', '구현시고려사항'
+    ]);
+    sheet.getRange(1, 1, 1, 9).setFontWeight('bold');
   }
   return sheet;
 }

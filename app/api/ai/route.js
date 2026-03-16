@@ -41,15 +41,15 @@ ${userInput || '없음'}
 한국어로 5개 이상 도출해 주세요.`;
     } else if (type === 'workflow_split') {
       prompt = `당신은 롯데웰푸드 팀장/매니저의 업무 설계를 돕는 조력자입니다.
-아래 업무 설명을 "워크플로우 단계"로 나누어 주세요.
-- 각 단계는 제목과 함께 **세부 내용**(구체적 행동, 산출물, 담당 역할, 참고 사항 등)을 1~3문장으로 포함할 것.
+아래 업무 설명을 **여러 개의 워크플로우 단계**로 나누어 주세요. 반드시 5단계 이상으로 나눌 것.
+- 각 단계는 한 줄에 하나씩 "번호. [제목] — [설명 및 세부 내용]. (AI 적용 가능 여부)" 형식으로 출력.
+- 설명을 생략하거나 축약하지 말고, 사용자가 적은 내용을 반영하여 각 단계의 세부 내용을 충분히 포함할 것.
 - AI 적용이 유력한 단계에는 끝에 "(AI 적용 가능)"을 붙일 것.
-형식: 1. [제목] — [설명 및 세부 내용]. (AI 적용 가능 여부)
 
 사용자가 적은 업무 설명:
 ${userInput || context || '없음'}
 
-한국어로만, 번호 목록 형태로 출력하세요.`;
+한국어로만, 5단계 이상 번호 목록 형태로만 출력하세요. 각 줄은 반드시 "1. ", "2. ", ... 로 시작하세요.`;
     } else if (type === 'idea_recommend') {
       const ideas = body.ideas || [];
       const ideasText = ideas.map((i, idx) => `[${idx + 1}] 제목: ${i.title || ''}\nAS-IS: ${i.asIs || ''}\nTO-BE: ${i.toBe || ''}\n유형: ${i.taskType === 'expand' ? '임원 범위 확장' : '신규'}`).join('\n\n');
@@ -82,11 +82,11 @@ ${ideasText}
 AI 적용 영역: ${context || '없음'}
 본부/맥락: ${userInput || ''}
 
-한국어로만, 5~10단계 정도로, 위 형식의 마크다운만 출력하세요.`;
+한국어로만, **최소 8단계 이상 15단계 이하**로 충분히 구체적으로 작성하고, 위 형식의 마크다운만 출력하세요. 절대 중간에 끊기지 않도록 모든 단계를 완성하세요.`;
     } else {
       return NextResponse.json({ error: 'type은 workflow, task, workflow_split, example 중 하나여야 합니다.' }, { status: 400 });
     }
-    const maxTokens = type === 'task' ? 2048 : 1024;
+    const maxTokens = (type === 'task' || type === 'example') ? 2048 : type === 'workflow_split' ? 2048 : 1024;
     const res = await fetch(`${GEMINI_URL}?key=${encodeURIComponent(key)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

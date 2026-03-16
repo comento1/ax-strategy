@@ -76,7 +76,8 @@ export default function Home() {
   const [detailModalStrategy, setDetailModalStrategy] = useState(null); // 리뷰/사전과제에서 전략 상세 모달
   const [session3SelectedTaskId, setSession3SelectedTaskId] = useState(null); // 세션3에서 선택한 과제(정의서 보기)
   const [session2DraftTitle, setSession2DraftTitle] = useState('');
-  const [session2DraftContent, setSession2DraftContent] = useState('');
+  const [session2DraftAsIs, setSession2DraftAsIs] = useState('');
+  const [session2DraftToBe, setSession2DraftToBe] = useState('');
 
   useEffect(() => {
     fetch('/api/logo')
@@ -208,7 +209,7 @@ export default function Home() {
       const aiTag = (rest.indexOf('AI 적용 가능') >= 0) ? 'ai' : 'review';
       return { id: id(), order: i, title, desc, aiTag };
     });
-    setPrework((p) => ({ ...p, workflowSteps: newSteps }));
+    if (newSteps.length > 0) setPrework((p) => ({ ...p, workflowSteps: newSteps }));
   };
 
   const callAi = async (type) => {
@@ -353,11 +354,16 @@ export default function Home() {
   };
   const registeredIdeas = session2.registeredIdeas || [];
   const selectedIds = session2.selectedIds || [];
-  const registerIdea = (title, content) => {
+  const registerIdea = (title, asIs, toBe) => {
     if (!(title || '').trim()) return;
     setSession2((s) => ({
       ...s,
-      registeredIdeas: [...(s.registeredIdeas || []), { id: id(), title: (title || '').trim(), content: (content || '').trim() }],
+      registeredIdeas: [...(s.registeredIdeas || []), {
+        id: id(),
+        title: (title || '').trim(),
+        asIs: (asIs || '').trim(),
+        toBe: (toBe || '').trim(),
+      }],
     }));
   };
   const toggleIdeaSelected = (ideaId) => {
@@ -367,9 +373,32 @@ export default function Home() {
       return { ...s, selectedIds: has ? ids.filter((id) => id !== ideaId) : [...ids, ideaId] };
     });
   };
-  const moveSelectedToSession3 = () => {
-    const toAdd = registeredIdeas.filter((r) => selectedIds.includes(r.id)).map((r) => ({ id: r.id, title: r.title, desc: r.content || '' }));
+  const moveSelectedToSession3 = async () => {
+    const toAdd = registeredIdeas.filter((r) => selectedIds.includes(r.id)).map((r) => ({
+      id: r.id,
+      title: r.title,
+      desc: [r.asIs, r.toBe].filter(Boolean).join('\n\n'),
+      asIs: r.asIs || '',
+      toBe: r.toBe || '',
+    }));
     if (toAdd.length === 0) { alert('세션 3으로 가져갈 항목을 1개 이상 선택해 주세요.'); return; }
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/prework', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'session2',
+          department: department || '',
+          participantName: participantName || '익명',
+          participantPosition: participantPosition || '',
+          items: toAdd.map((t) => ({ title: t.title, asIs: t.asIs, toBe: t.toBe, desc: t.desc })),
+        }),
+      });
+      if (!res.ok) alert('선택한 항목 저장에 실패했습니다.');
+    } finally {
+      setSubmitting(false);
+    }
     setSession2((s) => ({
       ...s,
       extraB: [...(s.extraB || []), ...toAdd],
@@ -388,11 +417,61 @@ export default function Home() {
   const priorityRanks = session1.priorityRanks || {};
   const finalTasks = (() => {
     const ranked = tasksForIceRaw.filter((t) => priorityRanks[t.id] != null).sort((a, b) => (priorityRanks[a.id] || 99) - (priorityRanks[b.id] || 99));
-    return ranked.length > 0 ? ranked : [];
+    const fromSession2 = (session2.extraB || []).map((t) => ({ ...t, source: 'extraB' }));
+    const rankedIds = new Set(ranked.map((t) => t.id));
+    const extraFromSession2 = fromSession2.filter((t) => !rankedIds.has(t.id));
+    return ranked.length > 0 ? [...ranked, ...extraFromSession2] : fromSession2;
   })();
 
   const updateDef = (taskId, field, value) => {
     setSession3((s) => ({ ...s, definitions: { ...(s.definitions || {}), [taskId]: { ...(s.definitions?.[taskId] || {}), [field]: value } } }));
+  };
+
+  const saveSession3ToSheet = async (taskId, taskTitle, definition) => {
+    const res = await fetch('/api/prework', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'session3_definitions',
+        department: department || '',
+        participantName: participantName || '익명',
+        taskId,
+        taskTitle,
+        definition: definition || {},
+      }),
+    });
+    return res.ok;
+  };
+
+  const handlePrint = async () => {
+    if (session3SelectedTaskId) {
+      const t = finalTasks.find((x) => x.id === session3SelectedTaskId);
+      const d = t ? (session3.definitions?.[t.id] || {}) : {};
+      if (t && (d.reason || d.expectedChange || d.successCriteria || d.implementationNotes)) {
+        setSubmitting(true);
+        try {
+          await saveSession3ToSheet(t.id, t.title, d);
+        } finally {
+          setSubmitting(false);
+        }
+      }
+    } else {
+      const toSave = finalTasks.filter((t) => {
+        const d = session3.definitions?.[t.id] || {};
+        return d.reason || d.expectedChange || d.successCriteria || d.implementationNotes;
+      });
+      if (toSave.length > 0) {
+        setSubmitting(true);
+        try {
+          for (const t of toSave) {
+            await saveSession3ToSheet(t.id, t.title, session3.definitions?.[t.id] || {});
+          }
+        } finally {
+          setSubmitting(false);
+        }
+      }
+    }
+    window.print();
   };
 
   useEffect(() => persist(), [persist]);
@@ -470,7 +549,15 @@ export default function Home() {
         return;
       }
       const title = s.요약제목 || s['AI 적용 기대영역'] || s.제목 || '';
-      setPrework((p) => ({ ...p, selectedStrategyId: s.id, strategyTitle: title, strategyFull: s }));
+      setPrework((p) => ({
+        ...p,
+        selectedStrategyId: s.id,
+        strategyTitle: title,
+        strategyFull: s,
+        workflowSteps: [],
+        taskCandidates: [],
+        questions: p.questions || [],
+      }));
       setPreworkStep(1);
       setWorkflowExample('');
       setDetailModalStrategy(null);
@@ -649,6 +736,7 @@ export default function Home() {
 
               {preworkStep === 2 && (
                 <div className="section-block">
+                  <button type="button" className="btn btn-sm" style={{ marginBottom: 12 }} onClick={() => setPreworkStep(1)}>← 이전 단계 (워크플로우)</button>
                   <p className="section-title">2단계: 과제 후보</p>
                   <p className="section-sub step-guide">앞서 작성한 워크플로우를 참고하여 AI 제안을 받거나 직접 과제를 추가해 주세요.</p>
                   {(prework.workflowSteps || []).length > 0 && (
@@ -692,6 +780,7 @@ export default function Home() {
 
               {preworkStep === 3 && (
                 <div className="section-block">
+                  <button type="button" className="btn btn-sm" style={{ marginBottom: 12 }} onClick={() => setPreworkStep(2)}>← 이전 단계 (과제 후보)</button>
                   <div className="def-card">
                     <p className="section-title">3단계: 강사에게 질문</p>
                     <p className="section-sub step-guide">질문을 입력 후 제출하면 구글 시트에 저장됩니다.</p>
@@ -850,36 +939,45 @@ export default function Home() {
             </div>
           </div>
           <div className="section-block">
+            <button type="button" className="btn btn-sm" style={{ marginBottom: 12 }} onClick={() => setPhase('session1')}>← 세션 1로</button>
             <h3>아이디어 작성</h3>
-            <p className="section-sub">제목과 내용을 입력한 뒤 등록 버튼을 눌러 하단 목록에 추가하세요.</p>
+            <p className="section-sub">제목, AS-IS, TO-BE를 각각 입력한 뒤 등록 버튼을 눌러 하단 목록에 추가하세요.</p>
             <div className="idea-card session2-draft">
               <input className="idea-title" placeholder="아이디어 제목" value={session2DraftTitle} onChange={(e) => setSession2DraftTitle(e.target.value)} />
-              <textarea placeholder="내용 (AS-IS, TO-BE 등 자유롭게 작성)" value={session2DraftContent} onChange={(e) => setSession2DraftContent(e.target.value)} rows={4} style={{ width: '100%', padding: 8, marginTop: 8 }} />
+              <label className="session2-field-label">AS-IS (현재 불편한 점·문제)</label>
+              <textarea placeholder="AS-IS 내용" value={session2DraftAsIs} onChange={(e) => setSession2DraftAsIs(e.target.value)} rows={3} style={{ width: '100%', padding: 8, marginTop: 4 }} />
+              <label className="session2-field-label">TO-BE (바꾸고 싶은 방향·목표)</label>
+              <textarea placeholder="TO-BE 내용" value={session2DraftToBe} onChange={(e) => setSession2DraftToBe(e.target.value)} rows={3} style={{ width: '100%', padding: 8, marginTop: 4 }} />
               <div style={{ marginTop: 12 }}>
-                <button type="button" className="btn btn-primary" onClick={() => { registerIdea(session2DraftTitle, session2DraftContent); setSession2DraftTitle(''); setSession2DraftContent(''); }}>등록</button>
+                <button type="button" className="btn btn-primary" onClick={() => { registerIdea(session2DraftTitle, session2DraftAsIs, session2DraftToBe); setSession2DraftTitle(''); setSession2DraftAsIs(''); setSession2DraftToBe(''); }}>등록</button>
               </div>
             </div>
           </div>
           <div className="section-block">
             <h3>등록한 아이디어</h3>
-            <p className="section-sub">세션 3으로 가져갈 항목을 복수 선택한 뒤 「선택한 항목을 세션 3 과제로」를 누르세요.</p>
+            <p className="section-sub">세션 3으로 가져갈 항목을 「선택」 버튼으로 고른 뒤, 하단의 「선택한 항목을 세션 3 과제로」를 누르세요.</p>
             {registeredIdeas.length === 0 && <p className="section-sub">등록된 아이디어가 없습니다. 위에서 작성 후 등록해 주세요.</p>}
             {registeredIdeas.map((r) => (
-              <div key={r.id} className="task-card session2-registered">
-                <label className="session2-check-wrap">
-                  <input type="checkbox" checked={selectedIds.includes(r.id)} onChange={() => toggleIdeaSelected(r.id)} />
-                  <span className="session2-check-label">선택</span>
-                </label>
+              <div key={r.id} className={`task-card session2-registered ${selectedIds.includes(r.id) ? 'session2-selected' : ''}`}>
                 <div style={{ flex: 1 }}>
                   <p className="title">{r.title || '(제목 없음)'}</p>
-                  {r.content && <p className="desc">{r.content}</p>}
+                  {r.asIs && <p className="desc"><strong>AS-IS:</strong> {r.asIs}</p>}
+                  {r.toBe && <p className="desc"><strong>TO-BE:</strong> {r.toBe}</p>}
                 </div>
-                <button type="button" className="btn btn-sm" onClick={() => removeRegisteredIdea(r.id)}>삭제</button>
+                <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                  <button type="button" className={`btn btn-sm ${selectedIds.includes(r.id) ? 'btn-primary' : ''}`} onClick={() => toggleIdeaSelected(r.id)}>
+                    {selectedIds.includes(r.id) ? '선택 해제' : '선택'}
+                  </button>
+                  <button type="button" className="btn btn-sm" onClick={() => removeRegisteredIdea(r.id)}>삭제</button>
+                </div>
               </div>
             ))}
             {registeredIdeas.length > 0 && (
               <div style={{ marginTop: 16 }}>
-                <button type="button" className="btn btn-primary" onClick={moveSelectedToSession3}>선택한 항목을 세션 3 과제로</button>
+                <button type="button" className="btn btn-primary" disabled={submitting || selectedIds.length === 0} onClick={moveSelectedToSession3}>
+                  {submitting ? '저장 중…' : '선택한 항목을 세션 3 과제로'}
+                </button>
+                {selectedIds.length > 0 && <span className="section-sub" style={{ marginLeft: 8 }}>{selectedIds.length}개 선택됨</span>}
               </div>
             )}
           </div>
@@ -910,11 +1008,12 @@ export default function Home() {
         <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>{department} · 세션 3</span>
         <div style={{ flex: 1 }} />
         {session3SelectedTaskId && <button type="button" className="btn btn-sm" onClick={() => setSession3SelectedTaskId(null)}>← 목록으로</button>}
-        <button type="button" className="btn btn-primary" onClick={() => window.print()}>인쇄 / PDF 저장</button>
+        <button type="button" className="btn btn-primary" disabled={submitting} onClick={handlePrint}>{submitting ? '저장 중…' : '인쇄 / PDF 저장'}</button>
       </header>
       <main className="app-main" style={{ padding: 20 }}>
         {!session3SelectedTaskId ? (
           <>
+            <button type="button" className="btn btn-sm" style={{ marginBottom: 12 }} onClick={() => setPhase('session2')}>← 세션 2로</button>
             <div className="info-banner">
               <span className="icon">3</span>
               <div>
