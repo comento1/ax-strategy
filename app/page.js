@@ -5,7 +5,7 @@ import ReactMarkdown from 'react-markdown';
 
 const STORAGE_KEY = 'ax_workshop';
 
-const WORKFLOW_GUIDE = '업무 흐름을 한 덩어리로 적은 뒤 「단계로 쪼개기」를 누르면 단계별로 정리됩니다.';
+const WORKFLOW_GUIDE = '현재 업무를 AI 적용 전(AS-IS) 기준으로, 실제 수행 순서대로 한 덩어리로 적은 뒤 「단계로 쪼개기」를 누르면 단계별로 정리됩니다.';
 
 function id() {
   return 'id-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
@@ -70,7 +70,7 @@ export default function Home() {
     return local?.agreedTasks || [];
   });
   const [logoUrl, setLogoUrl] = useState('');
-  const [preworkStep, setPreworkStep] = useState(1); // 1: 워크플로우, 2: 과제 후보, 3: 질문
+  const [preworkStep, setPreworkStep] = useState(1); // 1: 워크플로우 분석(AS-IS), 2: 과제 후보, 3: 질문
   const [workflowExample, setWorkflowExample] = useState(''); // 선택 영역별 예시 (API로 로드)
   const [questionSubmitted, setQuestionSubmitted] = useState(false); // 질문 제출 후 "등록되었습니다" 표시
   const [detailModalStrategy, setDetailModalStrategy] = useState(null); // 리뷰/사전과제에서 전략 상세 모달
@@ -677,7 +677,7 @@ export default function Home() {
               </div>
               <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--color-border-tertiary)' }}>
                 <p className="section-label">단계</p>
-                <div className={`guide-row ${preworkStep === 1 ? 'active' : ''}`}><span className="guide-n">1</span><p className="guide-text">워크플로우 작성·단계로 쪼개기</p></div>
+                <div className={`guide-row ${preworkStep === 1 ? 'active' : ''}`}><span className="guide-n">1</span><p className="guide-text">워크플로우 분석 (AS-IS 정리)</p></div>
                 <div className={`guide-row ${preworkStep === 2 ? 'active' : ''}`}><span className="guide-n">2</span><p className="guide-text">과제 후보 목록 도출</p></div>
                 <div className={`guide-row ${preworkStep === 3 ? 'active' : ''}`} style={{ marginBottom: 0 }}><span className="guide-n">3</span><p className="guide-text">강사에게 질문하기</p></div>
               </div>
@@ -685,7 +685,7 @@ export default function Home() {
             <div className="prework-body">
               <div className="section-block" style={{ marginBottom: 16 }}>
                 <div className="session1-step-tabs" style={{ marginBottom: 0 }}>
-                  <button type="button" className={preworkStep === 1 ? 'active' : ''} onClick={() => setPreworkStep(1)}>1. 워크플로우</button>
+                  <button type="button" className={preworkStep === 1 ? 'active' : ''} onClick={() => setPreworkStep(1)}>1. 워크플로우 분석 (AS-IS)</button>
                   <button type="button" className={preworkStep === 2 ? 'active' : ''} onClick={() => setPreworkStep(2)}>2. 과제 후보</button>
                   <button type="button" className={preworkStep === 3 ? 'active' : ''} onClick={() => setPreworkStep(3)}>3. 질문하기</button>
                 </div>
@@ -693,7 +693,7 @@ export default function Home() {
 
               {preworkStep === 1 && (
                 <div className="section-block">
-                  <p className="section-title">1단계: 워크플로우</p>
+                  <p className="section-title">1단계: 워크플로우 분석 (AS-IS 정리)</p>
                   <p className="section-sub step-guide">{WORKFLOW_GUIDE}</p>
                   <div className="wf-example wf-example-markdown" style={{ marginBottom: 12 }}>
                     <strong>예시 (선택 영역 기준)</strong>
@@ -747,10 +747,10 @@ export default function Home() {
                           <div key={s.id} className="flowchart-step">
                             <span className="flowchart-step-n">{i + 1}</span>
                             <div className="flowchart-step-body">
-                              <strong>{s.title || '(제목 없음)'}</strong>
-                              {s.desc && <span className="flowchart-step-desc"> — {s.desc}</span>}
+                              <span className="flowchart-step-body-title">{s.title || '(제목 없음)'}</span>
+                              {s.desc && <span className="flowchart-step-desc">{s.desc}</span>}
                             </div>
-                            {i < (prework.workflowSteps?.length || 0) - 1 && <span className="flowchart-arrow">→</span>}
+                            {i < (prework.workflowSteps?.length || 0) - 1 && <span className="flowchart-arrow">↓</span>}
                           </div>
                         ))}
                       </div>
@@ -758,7 +758,11 @@ export default function Home() {
                   )}
                   <div className="ai-assist-box ai-box-task">
                     <button type="button" className="btn btn-sm btn-primary" disabled={aiLoading} onClick={() => callAi('task')}>{aiLoading ? '생성 중…' : 'AI 과제 제안 받기'}</button>
-                    {aiType === 'task' && aiResult && <div className="result">{aiResult}</div>}
+                    {aiType === 'task' && aiResult && (
+                      <div className="result">
+                        <ReactMarkdown>{aiResult}</ReactMarkdown>
+                      </div>
+                    )}
                   </div>
                   <div className="task-add-buttons">
                     <button type="button" className="btn btn-task-add" onClick={() => addTask('low')}>

@@ -234,12 +234,13 @@
 
 /* 과제 후보: 워크플로우 플로우차트 */
 .workflow-flowchart { margin-bottom: 16px; padding: 12px; background: var(--color-background-secondary); border: 1px solid var(--color-border-primary); border-radius: var(--border-radius-md); }
-.flowchart-steps { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.flowchart-step { display: flex; align-items: center; gap: 8px; }
+.flowchart-steps { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+.flowchart-step { display: flex; align-items: flex-start; gap: 8px; }
 .flowchart-step-n { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; background: var(--color-background-info); color: var(--color-text-info); font-size: 11px; font-weight: 600; flex-shrink: 0; }
-.flowchart-step-body { font-size: 12px; }
-.flowchart-step-desc { color: var(--color-text-secondary); }
-.flowchart-arrow { color: var(--color-text-tertiary); font-size: 14px; margin: 0 4px; }
+.flowchart-step-body { font-size: 12px; display: flex; flex-direction: column; gap: 2px; }
+.flowchart-step-body-title { font-weight: 600; }
+.flowchart-step-desc { color: var(--color-text-secondary); white-space: pre-wrap; }
+.flowchart-arrow { color: var(--color-text-tertiary); font-size: 14px; margin: 4px 0 0 32px; }
 
 /* 세션2 등록 목록·체크 */
 .session2-draft { margin-bottom: 0; }
