@@ -279,6 +279,10 @@ export default function Home() {
       return next;
     });
   };
+  const iceScore = (ev) => {
+    if (!ev || ev.impact == null || ev.ease == null || ev.confidence == null) return null;
+    return Math.round(((ev.impact + ev.ease + ev.confidence) / 3) * 10) / 10;
+  };
   const tasksForIceRaw = agreedTasks.length > 0 ? agreedTasks : [
     ...(prework.taskCandidates || []),
     ...(session2.extraB || []).map((t) => ({ ...t, source: 'extraB' })),
@@ -310,10 +314,6 @@ export default function Home() {
       next[taskId] = num;
       return { ...s, priorityRanks: next };
     });
-  };
-  const iceScore = (ev) => {
-    if (!ev || ev.impact == null || ev.ease == null || ev.confidence == null) return null;
-    return Math.round(((ev.impact + ev.ease + ev.confidence) / 3) * 10) / 10;
   };
 
   const addExtra = (track) => {
