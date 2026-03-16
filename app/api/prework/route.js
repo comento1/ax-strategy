@@ -13,16 +13,16 @@ async function proxyToSheets(method, req) {
   try {
     if (method === 'GET') {
       const { searchParams } = new URL(req.url);
-      const department = searchParams.get('department') || '';
-      const url = `${SHEETS_WEBAPP_URL}?department=${encodeURIComponent(department)}`;
+      const qs = searchParams.toString();
+      const url = qs ? `${SHEETS_WEBAPP_URL}?${qs}` : `${SHEETS_WEBAPP_URL}`;
       const res = await fetch(url, { method: 'GET' });
       const data = await res.json();
       if (!res.ok) {
         return NextResponse.json(data || { error: 'Sheets Web App 오류' }, { status: res.status >= 400 ? res.status : 500 });
       }
       if (Array.isArray(data)) return NextResponse.json(data);
-      if (data && typeof data === 'object' && data.error) return NextResponse.json([]);
-      return NextResponse.json([]);
+      if (data && typeof data === 'object') return NextResponse.json(data);
+      return NextResponse.json({});
     }
 
     if (method === 'POST') {

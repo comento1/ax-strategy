@@ -202,6 +202,7 @@ function doGet(e) {
         if (isSampleTitle(title2)) continue;
 
         ideas.push({
+          id: 's2-' + r,
           department: dept2,
           title: title2,
           asIs: asIsIdx >= 0 && row2[asIsIdx] != null ? String(row2[asIsIdx]).trim() : '',
