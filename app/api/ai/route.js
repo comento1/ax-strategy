@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
-const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+const GEMINI_MODEL = 'gemini-2.0-flash';
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 export async function POST(req) {
   const key = process.env.GEMINI_API_KEY;
@@ -50,8 +51,15 @@ ${userInput || '없음'}
 ${userInput || context || '없음'}
 
 한국어로만, 번호 목록 형태로만 출력하세요.`;
+    } else if (type === 'example') {
+      prompt = `다음 AI 적용 영역에 맞는 "워크플로우 작성 예시"를 조직·실무자 관점으로 5단계 이내로 만들어 주세요.
+각 단계: 제목 — 한 줄 설명 (AI 적용 가능 / 검토 필요)
+영역: ${context || '없음'}
+본부/맥락: ${userInput || ''}
+
+한국어로만, 번호 목록 형태로만 출력하세요.`;
     } else {
-      return NextResponse.json({ error: 'type은 workflow, task, workflow_split 중 하나여야 합니다.' }, { status: 400 });
+      return NextResponse.json({ error: 'type은 workflow, task, workflow_split, example 중 하나여야 합니다.' }, { status: 400 });
     }
     const res = await fetch(`${GEMINI_URL}?key=${encodeURIComponent(key)}`, {
       method: 'POST',

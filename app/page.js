@@ -4,14 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 
 const STORAGE_KEY = 'ax_workshop';
 
-const WORKFLOW_EXAMPLE = `[조직·실무자 관점 작성 예시 — 영업본부 '고객·시장 분석' 영역]
-1. 영업 목표 및 KPI 공유 — 본부/팀 목표, 지역별·채널별 목표를 실무자에게 전달 (AI 적용 가능: 목표 시뮬레이션)
-2. 시장·고객 데이터 수집 — 매출, 재고, 경쟁사, 고객 피드백 등 채널별 수집·가공 (AI 적용 가능)
-3. 데이터 검토 및 인사이트 도출 — 수집 데이터 기반 이슈·기회 요약, 주간/월간 리포팅 (AI 적용 가능)
-4. 영업 전략·액션 회의 — 인사이트를 바탕으로 지역별/품목별 전략·프로모션 결정 (검토 필요)
-5. 현장 실행 및 모니터링 — 담당자별 실행, 실적 추적, 보정 (AI 적용 가능: 예측 대비 분석)`;
-
-const WORKFLOW_GUIDE = '우리 팀이 해당 영역 업무를 수행할 때 실제로 거치는 단계를 순서대로 적어 주세요. 개인 업무가 아니라 조직 단위의 흐름(누가 무엇을 하고, 어떤 결과물이 다음 단계로 넘어가는지)을 기준으로 작성하면 좋습니다.';
+const WORKFLOW_GUIDE = '생각하시는 업무의 흐름을 작성해 주세요. 아래에서 "단계로 쪼개기"를 누르면 워크플로우 단계로 나눠 드립니다.';
 
 function id() {
   return 'id-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
@@ -35,6 +28,7 @@ export default function Home() {
   const [department, setDepartment] = useState('');
   const [strategies, setStrategies] = useState({ departments: [], strategies: [] });
   const [selectedStrategy, setSelectedStrategy] = useState(null);
+  const [viewDepartment, setViewDepartment] = useState(''); // 리뷰 시 보기용 본부 (기본: 내 본부)
   const [viewMode, setViewMode] = useState('list'); // list | stream
   const [phase, setPhase] = useState('entry'); // entry | review | prework | session1 | session2 | session3
   const [prework, setPrework] = useState(() => {
@@ -76,6 +70,9 @@ export default function Home() {
     return local?.agreedTasks || [];
   });
   const [logoUrl, setLogoUrl] = useState('');
+  const [preworkStep, setPreworkStep] = useState(1); // 1: 워크플로우, 2: 과제 후보, 3: 질문
+  const [workflowExample, setWorkflowExample] = useState(''); // 선택 영역별 예시 (API로 로드)
+  const [questionSubmitted, setQuestionSubmitted] = useState(false); // 질문 제출 후 "등록되었습니다" 표시
 
   useEffect(() => {
     fetch('/api/logo')
@@ -117,10 +114,6 @@ export default function Home() {
         .catch(() => setSharedPrework([]));
     }
   }, [phase, department]);
-
-  const filteredStrategies = strategies.strategies?.filter(
-    (s) => s.작성본부 === department
-  ) || [];
 
   const addWfStep = () => {
     setPrework((p) => ({
@@ -193,7 +186,7 @@ export default function Home() {
     setAiResult('');
     try {
       const context = t === 'workflow' || t === 'workflow_split' ? (prework.strategyTitle || '') : (prework.workflowSteps || []).map((s) => `${s.title}: ${s.desc}`).join('\n');
-      const userInput = t === 'workflow_split' ? aiSplitInput : t === 'task' ? aiTaskInput : aiUserInput;
+      const userInput = t === 'workflow_split' ? aiSplitInput : t === 'task' ? aiTaskInput : t === 'example' ? (department || '') : aiUserInput;
       const res = await fetch('/api/ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -206,6 +199,49 @@ export default function Home() {
       setAiResult('오류: ' + e.message);
     } finally {
       setAiLoading(false);
+    }
+  };
+
+  const loadWorkflowExample = async () => {
+    if (!prework.strategyTitle?.trim()) return;
+    setAiLoading(true);
+    setWorkflowExample('');
+    try {
+      const res = await fetch('/api/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'example', context: prework.strategyTitle, userInput: department || '' }),
+      });
+      const data = await res.json();
+      if (data.error) setWorkflowExample('예시 불러오기 실패: ' + data.error);
+      else setWorkflowExample(data.text || '');
+    } catch (e) {
+      setWorkflowExample('예시 불러오기 실패: ' + e.message);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const submitQuestionOnly = async (questionText) => {
+    if (!questionText?.trim()) return;
+    setSubmitting(true);
+    setQuestionSubmitted(false);
+    try {
+      const res = await fetch('/api/prework', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'question',
+          department: department || '',
+          participantName: participantName || '익명',
+          participantPosition: participantPosition || '',
+          question: questionText.trim(),
+        }),
+      });
+      if (res.ok) setQuestionSubmitted(true);
+      else alert('질문 등록에 실패했습니다. 다시 시도해 주세요.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -306,7 +342,7 @@ export default function Home() {
           </div>
           <p className="entry-hint">이름·직급은 본인이 작성한 데이터 수정 권한 확인에 사용됩니다.</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 16 }}>
-            <button className="btn btn-primary" disabled={!department || !participantName?.trim()} onClick={() => setPhase('review')}>
+            <button className="btn btn-primary" disabled={!department || !participantName?.trim()} onClick={() => { setViewDepartment(department); setPhase('review'); }}>
               AX 전략 영역 리뷰 → 사전과제
             </button>
             <button className="btn" disabled={!department || !participantName?.trim()} onClick={() => setPhase('session1')}>
@@ -318,16 +354,12 @@ export default function Home() {
     );
   }
 
-  // ----- Strategy review (then prework): 본부별 전체 리스트, 상세 5항목
-  const strategyFields = strategies.strategyFields || ['AI 적용 기대영역', 'AI 적용 기대이유', '기대하는 변화의 모습', '수행 조직', '구현 간 고려사항'];
+  // ----- Strategy review (then prework): 보기 본부 선택, 상세는 시트 전체 필드 표시
+  const strategyDetailFields = ['요약제목', '요약설명', '작성본부', 'AI 적용 기대영역', 'AI 적용 기대이유', '기대하는 변화의 모습', '수행 조직', '구현 간 고려사항'];
   if (phase === 'review') {
-    const byDept = (strategies.strategies || []).reduce((acc, s) => {
-      const dept = s.작성본부 || '기타';
-      if (!acc[dept]) acc[dept] = [];
-      acc[dept].push(s);
-      return acc;
-    }, {});
-    const deptOrder = strategies.departments || Object.keys(byDept).sort();
+    const currentViewDept = viewDepartment || department;
+    const listForView = (strategies.strategies || []).filter((s) => (s.작성본부 || '').trim() === currentViewDept);
+    const canSelectForPrework = selectedStrategy && (selectedStrategy.작성본부 || '').trim() === (department || '').trim();
     return (
       <div className="app-shell">
         <header className="app-header">
@@ -343,44 +375,73 @@ export default function Home() {
           <div className="info-banner">
             <span className="icon">i</span>
             <div>
-              <p className="title">임원진이 도출한 AX 전략 (본부별 전체)</p>
-              <p className="body">아래 과제는 본부별로 정리된 임원 관점의 AI 적용 기대 영역입니다. <strong>우리 본부({department})</strong> 과제 중 하나를 선택해 사전과제를 진행하세요.</p>
+              <p className="title">임원진이 도출한 AX 전략</p>
+              <p className="body">아래에서 <strong>보기 본부</strong>를 바꿔 다른 본부 과제도 볼 수 있습니다. 사전과제 진행은 <strong>본인 본부({department})</strong> 과제만 선택할 수 있습니다.</p>
             </div>
           </div>
-          {deptOrder.map((dept) => {
-            const list = byDept[dept] || [];
-            if (list.length === 0) return null;
-            return (
-              <div key={dept} className="strategy-dept-block">
-                <h3 className="strategy-dept-title">{dept}</h3>
-                <div className="strategy-list-view">
-                  {list.map((s) => (
-                    <div key={s.id} className={`strategy-card strategy-card-full ${selectedStrategy?.id === s.id ? 'sel' : ''}`} onClick={() => setSelectedStrategy(selectedStrategy?.id === s.id ? null : s)}>
-                      <div className="strategy-card-head">
-                        <p className="strategy-card-title">{s.제목}</p>
-                        <p className="strategy-card-desc">{s.리스트설명 || s.내용}</p>
-                      </div>
-                      {(selectedStrategy?.id === s.id) && (
-                        <div className="strategy-card-detail">
-                          {strategyFields.map((key) => (s[key] != null && String(s[key]).trim() !== '') && (
-                            <div key={key} className="strategy-detail-row">
-                              <span className="strategy-detail-label">{key}</span>
-                              <span className="strategy-detail-value">{s[key]}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+          <div className="review-actions" style={{ marginBottom: 16, flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+            <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>보기 본부:</span>
+            <select
+              value={currentViewDept}
+              onChange={(e) => setViewDepartment(e.target.value)}
+              style={{ minWidth: 160, padding: '6px 10px' }}
+            >
+              <option value={department}>{department} (내 본부)</option>
+              {(strategies.departments || []).filter((d) => d !== department).map((d) => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
+          </div>
+          <div className="strategy-dept-block">
+            <h3 className="strategy-dept-title">{currentViewDept}</h3>
+            <div className="strategy-list-view">
+              {listForView.map((s) => {
+                const cardTitle = (s.요약제목 || s['AI 적용 기대영역'] || s.제목 || '').trim() || '(제목 없음)';
+                const cardDesc = (s.요약설명 || s['AI 적용 기대이유'] || s.리스트설명 || s.내용 || '').trim();
+                return (
+                  <div key={s.id} className={`strategy-card strategy-card-full ${selectedStrategy?.id === s.id ? 'sel' : ''}`} onClick={() => setSelectedStrategy(selectedStrategy?.id === s.id ? null : s)}>
+                    <div className="strategy-card-head">
+                      <p className="strategy-card-title">{cardTitle}</p>
+                      {cardDesc && <p className="strategy-card-desc">{cardDesc}</p>}
                     </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
+                    {(selectedStrategy?.id === s.id) && (
+                      <div className="strategy-card-detail">
+                        {strategyDetailFields.map((key) => (s[key] != null && String(s[key]).trim() !== '') && (
+                          <div key={key} className="strategy-detail-row">
+                            <span className="strategy-detail-label">{key}</span>
+                            <span className="strategy-detail-value">{s[key]}</span>
+                          </div>
+                        ))}
+                        {/* 시트에만 있는 그 외 컬럼도 표시 */}
+                        {Object.keys(s).filter((k) => !strategyDetailFields.includes(k) && k !== 'id' && s[k] != null && String(s[k]).trim() !== '').map((key) => (
+                          <div key={key} className="strategy-detail-row">
+                            <span className="strategy-detail-label">{key}</span>
+                            <span className="strategy-detail-value">{s[key]}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            {listForView.length === 0 && <p className="section-sub">해당 본부에 등록된 전략이 없습니다.</p>}
+          </div>
           <div className="review-actions">
-            <button className="btn btn-primary" disabled={!selectedStrategy} onClick={() => {
-              setPrework((p) => ({ ...p, selectedStrategyId: selectedStrategy.id, strategyTitle: selectedStrategy.제목, strategyFull: selectedStrategy }));
-              setPhase('prework');
-            }}>
+            {selectedStrategy && !canSelectForPrework && (
+              <p style={{ fontSize: 12, color: 'var(--color-warning)', marginBottom: 8 }}>본인 본부 과제만 사전과제로 선택할 수 있습니다. 위에서 내 본부({department})로 보기를 바꾼 뒤 우리 본부 과제를 선택하세요.</p>
+            )}
+            <button
+              className="btn btn-primary"
+              disabled={!canSelectForPrework}
+              onClick={() => {
+                const title = selectedStrategy.요약제목 || selectedStrategy['AI 적용 기대영역'] || selectedStrategy.제목 || '';
+                setPrework((p) => ({ ...p, selectedStrategyId: selectedStrategy.id, strategyTitle: title, strategyFull: selectedStrategy }));
+                setPreworkStep(1);
+                setWorkflowExample('');
+                setPhase('prework');
+              }}
+            >
               선택한 전략으로 사전과제 진행 →
             </button>
           </div>
@@ -389,9 +450,25 @@ export default function Home() {
     );
   }
 
-  // ----- Prework
+  // ----- Prework (단계: 1 워크플로우, 2 과제 후보, 3 질문하기)
   if (phase === 'prework') {
     const steps = (prework.workflowSteps || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0));
+    const applySplitResult = () => {
+      if (!aiResult || aiType !== 'workflow_split') return;
+      const lines = aiResult.split('\n').filter((l) => /^\d+\./.test(l.trim()));
+      const newSteps = lines.map((line, i) => {
+        const clean = line.replace(/^\d+\.\s*/, '').trim();
+        const dash = clean.indexOf(' — ');
+        const title = dash >= 0 ? clean.substring(0, dash).trim() : clean;
+        const rest = dash >= 0 ? clean.substring(dash + 3).trim() : '';
+        const paren = rest.lastIndexOf('(');
+        const desc = paren >= 0 ? rest.substring(0, paren).trim() : rest;
+        const aiTag = (rest.indexOf('AI 적용 가능') >= 0) ? 'ai' : 'review';
+        return { id: id(), order: i, title, desc, aiTag };
+      });
+      setPrework((p) => ({ ...p, workflowSteps: newSteps }));
+      setAiResult('');
+    };
     return (
       <div className="app-shell">
         <header className="app-header">
@@ -414,106 +491,120 @@ export default function Home() {
             <aside className="prework-side">
               <p className="section-label">선택한 AX 전략</p>
               <div className="strategy-card sel" style={{ cursor: 'default' }}>
-                <p className="one-liner">{prework.strategyTitle?.slice(0, 60) || '—'}…</p>
+                <p className="one-liner">{prework.strategyTitle?.slice(0, 60) || '—'}{(prework.strategyTitle?.length || 0) > 60 ? '…' : ''}</p>
               </div>
               <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--color-border-tertiary)' }}>
-                <p className="section-label">수행 가이드</p>
-                <div className="guide-row"><span className="guide-n">1</span><p className="guide-text">전략에 맞는 <strong>업무 단계</strong>를 순서대로 입력하세요</p></div>
-                <div className="guide-row"><span className="guide-n">2</span><p className="guide-text">각 단계에서 <strong>AI 적용 가능 과제</strong>를 도출하세요</p></div>
-                <div className="guide-row" style={{ marginBottom: 0 }}><span className="guide-n">3</span><p className="guide-text">강사에게 <strong>질문사항</strong>을 등록할 수 있습니다</p></div>
+                <p className="section-label">단계</p>
+                <div className={`guide-row ${preworkStep === 1 ? 'active' : ''}`}><span className="guide-n">1</span><p className="guide-text">워크플로우 작성·단계로 쪼개기</p></div>
+                <div className={`guide-row ${preworkStep === 2 ? 'active' : ''}`}><span className="guide-n">2</span><p className="guide-text">과제 후보 목록 도출</p></div>
+                <div className={`guide-row ${preworkStep === 3 ? 'active' : ''}`} style={{ marginBottom: 0 }}><span className="guide-n">3</span><p className="guide-text">강사에게 질문하기</p></div>
               </div>
             </aside>
             <div className="prework-body">
-              <div className="section-block">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                  <div>
-                    <p className="section-title">워크플로우 분석</p>
-                    <p className="section-sub">현재 우리 팀의 실제 업무 흐름을 단계별로 입력하세요. 직접 작성하거나 AI 지원을 사용하세요.</p>
+              <div className="section-block" style={{ marginBottom: 16 }}>
+                <div className="session1-step-tabs" style={{ marginBottom: 0 }}>
+                  <button type="button" className={preworkStep === 1 ? 'active' : ''} onClick={() => setPreworkStep(1)}>1. 워크플로우</button>
+                  <button type="button" className={preworkStep === 2 ? 'active' : ''} onClick={() => setPreworkStep(2)}>2. 과제 후보</button>
+                  <button type="button" className={preworkStep === 3 ? 'active' : ''} onClick={() => setPreworkStep(3)}>3. 질문하기</button>
+                </div>
+              </div>
+
+              {preworkStep === 1 && (
+                <div className="section-block">
+                  <p className="section-title">워크플로우</p>
+                  <p className="section-sub wf-guide-text">{WORKFLOW_GUIDE}</p>
+                  <div className="wf-example" style={{ marginBottom: 12 }}>
+                    <strong>작성 예시 (선택한 영역 기준)</strong>
+                    {workflowExample ? (
+                      <pre style={{ margin: '8px 0 0', whiteSpace: 'pre-wrap', fontSize: 11 }}>{workflowExample}</pre>
+                    ) : (
+                      <button type="button" className="btn btn-sm" disabled={aiLoading} onClick={loadWorkflowExample} style={{ marginTop: 8 }}>{aiLoading ? '불러오는 중…' : '예시 불러오기'}</button>
+                    )}
                   </div>
-                  <button type="button" className="btn btn-sm" onClick={addWfStep}>단계 추가</button>
-                </div>
-                <p className="section-label">작성 가이드</p>
-                <p className="wf-guide-text">{WORKFLOW_GUIDE}</p>
-                <div className="wf-example">
-                  <strong>작성 예시 (조직·실무자 관점)</strong>
-                  <pre style={{ margin: '8px 0 0', whiteSpace: 'pre-wrap', fontSize: 11 }}>{WORKFLOW_EXAMPLE}</pre>
-                </div>
-                <div className="ai-assist-box ai-box-workflow">
-                  <p className="section-label">① 워크플로우 단계 제안</p>
-                  <p className="section-sub">선택한 전략에 맞는 업무 단계를 AI가 제안합니다.</p>
-                  <textarea placeholder="추가 설명 (선택)" value={aiUserInput} onChange={(e) => setAiUserInput(e.target.value)} rows={2} />
-                  <button type="button" className="btn btn-sm btn-primary" disabled={aiLoading} onClick={() => callAi('workflow')}>{aiLoading ? '생성 중…' : '단계 제안 받기'}</button>
-                  {aiType === 'workflow' && aiResult && <div className="result">{aiResult}</div>}
-                </div>
-                <div className="ai-assist-box ai-box-split">
-                  <p className="section-label">② 긴 글을 단계로 쪼개기</p>
-                  <p className="section-sub">이미 적어 두신 업무 설명을 단계별로 나눠 드립니다.</p>
-                  <textarea placeholder="업무 흐름을 한 덩어리로 적어 주세요" value={aiSplitInput} onChange={(e) => setAiSplitInput(e.target.value)} rows={3} />
-                  <button type="button" className="btn btn-sm" disabled={aiLoading} onClick={() => callAi('workflow_split')}>{aiLoading ? '처리 중…' : '단계로 쪼개기'}</button>
-                  {aiResult && aiType === 'workflow_split' && <div className="result">{aiResult}</div>}
-                </div>
-                {steps.map((s, i) => (
-                  <div key={s.id} className="wf-card">
-                    <div className="step-n">{i + 1}</div>
-                    <div style={{ flex: 1 }}>
-                      <input className="wf-input-title" placeholder="단계 제목" value={s.title || ''} onChange={(e) => updateWf(s.id, 'title', e.target.value)} />
-                      <input className="wf-input-desc" placeholder="설명" value={s.desc || ''} onChange={(e) => updateWf(s.id, 'desc', e.target.value)} />
+                  <div className="ai-assist-box ai-box-split">
+                    <p className="section-label">업무 흐름을 한 덩어리로 적은 뒤 단계로 쪼개기</p>
+                    <textarea placeholder="생각하시는 업무의 흐름을 작성해 주세요" value={aiSplitInput} onChange={(e) => setAiSplitInput(e.target.value)} rows={4} style={{ width: '100%' }} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <button type="button" className="btn btn-sm btn-primary" disabled={aiLoading} onClick={() => callAi('workflow_split')}>{aiLoading ? '처리 중…' : '단계로 쪼개기'}</button>
+                      {aiResult && aiType === 'workflow_split' && <button type="button" className="btn btn-sm" onClick={applySplitResult}>결과를 워크플로우에 반영</button>}
                     </div>
-                    <span className={`tag ${s.aiTag === 'review' ? 'tag-review' : 'tag-ai'}`}>{s.aiTag === 'review' ? '검토 필요' : 'AI 적용 가능'}</span>
-                    <button type="button" className="btn btn-sm" onClick={() => toggleWfTag(s.id)}>태그</button>
-                    <button type="button" className="btn btn-sm" onClick={() => delWf(s.id)}>삭제</button>
+                    {aiResult && aiType === 'workflow_split' && <div className="result" style={{ marginTop: 8 }}>{aiResult}</div>}
                   </div>
-                ))}
-                <div className="add-row" onClick={addWfStep}>+ 단계 추가하기</div>
-              </div>
-              <div className="section-block">
-                <p className="section-title">과제 후보 목록</p>
-                <p className="section-sub">상위 과제(전체 흐름 개선·자동화)와 하위 과제(단계별 개선)를 구분해 도출하세요.</p>
-                <div className="ai-assist-box ai-box-task">
-                  <p className="section-label">③ AI 과제 후보 제안 (상위·하위 구분)</p>
-                  <p className="section-sub">작성한 워크플로우를 바탕으로 상위/하위 과제를 제안합니다.</p>
-                  <textarea placeholder="추가 설명 (선택)" value={aiTaskInput} onChange={(e) => setAiTaskInput(e.target.value)} rows={2} />
-                  <button type="button" className="btn btn-sm btn-primary" disabled={aiLoading} onClick={() => callAi('task')}>{aiLoading ? '생성 중…' : '과제 제안 받기'}</button>
-                  {aiType === 'task' && aiResult && <div className="result">{aiResult}</div>}
-                </div>
-                <div className="task-add-buttons">
-                  <button type="button" className="btn btn-sm" onClick={() => addTask('high')}>+ 상위 과제 추가</button>
-                  <button type="button" className="btn btn-sm" onClick={() => addTask('low')}>+ 하위 과제 추가</button>
-                </div>
-                {(prework.taskCandidates || []).map((t, i) => (
-                  <div key={t.id} className={`task-card task-level-${t.level || 'low'}`}>
-                    <span className={`task-level-badge ${(t.level || 'low') === 'high' ? 'level-high' : 'level-low'}`}>{(t.level || 'low') === 'high' ? '상위' : '하위'}</span>
-                    <div style={{ flex: 1 }}>
-                      <input className="task-input-title" placeholder="과제 제목" value={t.title || ''} onChange={(e) => updateTask(t.id, 'title', e.target.value)} />
-                      <input className="task-input-desc" placeholder="설명" value={t.desc || ''} onChange={(e) => updateTask(t.id, 'desc', e.target.value)} />
+                  <p className="section-label" style={{ marginTop: 16 }}>워크플로우 단계 (수정 가능)</p>
+                  {steps.map((s, i) => (
+                    <div key={s.id} className="wf-card">
+                      <div className="step-n">{i + 1}</div>
+                      <div style={{ flex: 1 }}>
+                        <input className="wf-input-title" placeholder="단계 제목" value={s.title || ''} onChange={(e) => updateWf(s.id, 'title', e.target.value)} />
+                        <input className="wf-input-desc" placeholder="설명" value={s.desc || ''} onChange={(e) => updateWf(s.id, 'desc', e.target.value)} />
+                      </div>
+                      <span className={`tag ${s.aiTag === 'review' ? 'tag-review' : 'tag-ai'}`}>{s.aiTag === 'review' ? '검토 필요' : 'AI 적용 가능'}</span>
+                      <button type="button" className="btn btn-sm" onClick={() => toggleWfTag(s.id)}>태그</button>
+                      <button type="button" className="btn btn-sm" onClick={() => delWf(s.id)}>삭제</button>
                     </div>
-                    <button type="button" className="btn btn-sm" onClick={() => delTask(t.id)}>삭제</button>
-                  </div>
-                ))}
-              </div>
-              <div className="section-block">
-                <div className="def-card">
-                  <p className="section-title">강사에게 질문하기</p>
-                  <p className="section-sub">사전과제 중 질문을 남기세요.</p>
-                  <QuestionForm onSubmit={addQuestion} />
-                  <ul style={{ margin: '10px 0 0', paddingLeft: 18, fontSize: 12, color: 'var(--color-text-secondary)' }}>
-                    {(prework.questions || []).map((q, i) => (
-                      <li key={i}>{q}</li>
-                    ))}
-                  </ul>
+                  ))}
+                  <div className="add-row" onClick={addWfStep}>+ 단계 추가하기</div>
+                  <button type="button" className="btn btn-sm" style={{ marginTop: 12 }} onClick={() => setPreworkStep(2)}>다음: 과제 후보 목록 →</button>
                 </div>
-              </div>
-              <div style={{ marginTop: 20 }}>
-                <button className="btn btn-primary" disabled={submitting} onClick={() => {
-                  if (!prework.workflowSteps?.length || !prework.taskCandidates?.length) {
-                    alert('워크플로우 단계와 과제 후보를 각각 1개 이상 입력해 주세요.');
-                    return;
-                  }
-                  submitPreworkToServer();
-                }}>
-                  {submitting ? '제출 중…' : '사전과제 제출 → 세션 1'}
-                </button>
-              </div>
+              )}
+
+              {preworkStep === 2 && (
+                <div className="section-block">
+                  <p className="section-title">과제 후보 목록</p>
+                  <p className="section-sub">상위 과제(전체 흐름 개선·자동화)와 하위 과제(단계별 개선)를 구분해 도출하세요.</p>
+                  <div className="ai-assist-box ai-box-task">
+                    <p className="section-label">AI 과제 후보 제안 (상위·하위 구분)</p>
+                    <textarea placeholder="추가 설명 (선택)" value={aiTaskInput} onChange={(e) => setAiTaskInput(e.target.value)} rows={2} />
+                    <button type="button" className="btn btn-sm btn-primary" disabled={aiLoading} onClick={() => callAi('task')}>{aiLoading ? '생성 중…' : '과제 제안 받기'}</button>
+                    {aiType === 'task' && aiResult && <div className="result">{aiResult}</div>}
+                  </div>
+                  <div className="task-add-buttons">
+                    <button type="button" className="btn btn-sm" onClick={() => addTask('high')}>+ 상위 과제 추가</button>
+                    <button type="button" className="btn btn-sm" onClick={() => addTask('low')}>+ 하위 과제 추가</button>
+                  </div>
+                  {(prework.taskCandidates || []).map((t) => (
+                    <div key={t.id} className={`task-card task-level-${t.level || 'low'}`}>
+                      <span className={`task-level-badge ${(t.level || 'low') === 'high' ? 'level-high' : 'level-low'}`}>{(t.level || 'low') === 'high' ? '상위' : '하위'}</span>
+                      <div style={{ flex: 1 }}>
+                        <input className="task-input-title" placeholder="과제 제목" value={t.title || ''} onChange={(e) => updateTask(t.id, 'title', e.target.value)} />
+                        <input className="task-input-desc" placeholder="설명" value={t.desc || ''} onChange={(e) => updateTask(t.id, 'desc', e.target.value)} />
+                      </div>
+                      <button type="button" className="btn btn-sm" onClick={() => delTask(t.id)}>삭제</button>
+                    </div>
+                  ))}
+                  <div style={{ marginTop: 20, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <button type="button" className="btn btn-sm" onClick={() => setPreworkStep(1)}>← 워크플로우</button>
+                    <button type="button" className="btn btn-sm" onClick={() => setPreworkStep(3)}>다음: 질문하기 →</button>
+                    <button className="btn btn-primary" disabled={submitting || !prework.workflowSteps?.length || !prework.taskCandidates?.length} onClick={() => {
+                      if (!prework.workflowSteps?.length || !prework.taskCandidates?.length) {
+                        alert('워크플로우 단계와 과제 후보를 각각 1개 이상 입력해 주세요.');
+                        return;
+                      }
+                      submitPreworkToServer();
+                    }}>
+                      {submitting ? '제출 중…' : '사전과제 제출 → 세션 1'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {preworkStep === 3 && (
+                <div className="section-block">
+                  <div className="def-card">
+                    <p className="section-title">강사에게 질문하기</p>
+                    <p className="section-sub">질문을 입력하고 제출하면 구글 시트에 저장됩니다.</p>
+                    <QuestionSubmitForm onSubmit={submitQuestionOnly} submitting={submitting} submitted={questionSubmitted} />
+                  </div>
+                  <div style={{ marginTop: 16 }}>
+                    <button type="button" className="btn btn-sm" onClick={() => setPreworkStep(2)}>← 과제 후보</button>
+                    {prework.workflowSteps?.length > 0 && prework.taskCandidates?.length > 0 && (
+                      <button className="btn btn-primary" style={{ marginLeft: 8 }} disabled={submitting} onClick={() => submitPreworkToServer()}>
+                        {submitting ? '제출 중…' : '사전과제 제출 → 세션 1'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </main>
@@ -795,6 +886,24 @@ function QuestionForm({ onSubmit }) {
       <div style={{ textAlign: 'right' }}>
         <button type="button" className="btn btn-sm btn-primary" onClick={() => { onSubmit(text); setText(''); }}>질문 제출</button>
       </div>
+    </>
+  );
+}
+
+function QuestionSubmitForm({ onSubmit, submitting, submitted }) {
+  const [text, setText] = useState('');
+  const handleSubmit = () => {
+    if (!text.trim()) return;
+    onSubmit(text);
+    setText('');
+  };
+  return (
+    <>
+      <textarea rows={3} placeholder="질문 입력..." value={text} onChange={(e) => setText(e.target.value)} style={{ width: '100%', padding: 8, marginBottom: 8 }} disabled={submitting} />
+      <div style={{ textAlign: 'right' }}>
+        <button type="button" className="btn btn-sm btn-primary" disabled={submitting || !text.trim()} onClick={handleSubmit}>{submitting ? '등록 중…' : '질문 등록'}</button>
+      </div>
+      {submitted && <p style={{ marginTop: 8, color: 'var(--color-text-success)', fontSize: 13 }}>등록되었습니다.</p>}
     </>
   );
 }
