@@ -72,12 +72,14 @@ export default function Home() {
   const [logoUrl, setLogoUrl] = useState('');
   const [preworkStep, setPreworkStep] = useState(1); // 1: 워크플로우 분석(AS-IS), 2: 과제 후보, 3: 질문
   const [workflowExample, setWorkflowExample] = useState(''); // 선택 영역별 예시 (API로 로드)
+  const [showWorkflowExample, setShowWorkflowExample] = useState(false); // 워크플로우 예시 패널 토글
   const [questionSubmitted, setQuestionSubmitted] = useState(false); // 질문 제출 후 "등록되었습니다" 표시
   const [detailModalStrategy, setDetailModalStrategy] = useState(null); // 리뷰/사전과제에서 전략 상세 모달
   const [session3SelectedTaskId, setSession3SelectedTaskId] = useState(null); // 세션3에서 선택한 과제(정의서 보기)
   const [session2DraftTitle, setSession2DraftTitle] = useState('');
   const [session2DraftAsIs, setSession2DraftAsIs] = useState('');
   const [session2DraftToBe, setSession2DraftToBe] = useState('');
+  const [taskDraftText, setTaskDraftText] = useState(''); // 과제 도출용 초안 (과제화하기)
 
   useEffect(() => {
     fetch('/api/logo')
@@ -681,6 +683,15 @@ export default function Home() {
                 <div className={`guide-row ${preworkStep === 2 ? 'active' : ''}`}><span className="guide-n">2</span><p className="guide-text">과제 후보 목록 도출</p></div>
                 <div className={`guide-row ${preworkStep === 3 ? 'active' : ''}`} style={{ marginBottom: 0 }}><span className="guide-n">3</span><p className="guide-text">강사에게 질문하기</p></div>
               </div>
+              <div className="side-floating-next">
+                <button
+                  type="button"
+                  className="btn btn-primary btn-side-next"
+                  onClick={() => setPreworkStep((s) => (s < 3 ? s + 1 : s))}
+                >
+                  다음 단계로 이동 →
+                </button>
+              </div>
             </aside>
             <div className="prework-body">
               <div className="section-block" style={{ marginBottom: 16 }}>
@@ -695,19 +706,48 @@ export default function Home() {
                 <div className="section-block">
                   <p className="section-title">1단계: 워크플로우 분석 (AS-IS 정리)</p>
                   <p className="section-sub step-guide">{WORKFLOW_GUIDE}</p>
-                  <div className="wf-example wf-example-markdown" style={{ marginBottom: 12 }}>
-                    <strong>예시 (선택 영역 기준)</strong>
-                    {workflowExample ? (
-                      <div className="wf-example-body">
-                        <ReactMarkdown>{workflowExample}</ReactMarkdown>
-                      </div>
-                    ) : (
-                      <button type="button" className="btn btn-sm" disabled={aiLoading} onClick={loadWorkflowExample} style={{ marginTop: 8 }}>{aiLoading ? '불러오는 중…' : '예시 불러오기'}</button>
-                    )}
-                  </div>
-                  <div className="ai-assist-box ai-box-split">
-                    <textarea placeholder="생각하시는 업무의 흐름을 작성해 주세요" value={aiSplitInput} onChange={(e) => setAiSplitInput(e.target.value)} rows={4} style={{ width: '100%' }} />
-                    <button type="button" className="btn btn-sm btn-primary" disabled={aiLoading} onClick={() => callAi('workflow_split')}>{aiLoading ? '처리 중…' : '단계로 쪼개기'}</button>
+                  <button
+                    type="button"
+                    className="btn btn-example-primary"
+                    disabled={aiLoading && !workflowExample}
+                    onClick={() => {
+                      if (!workflowExample) loadWorkflowExample();
+                      setShowWorkflowExample((v) => !v);
+                    }}
+                  >
+                    <span className="btn-example-icon">📋</span>
+                    워크플로우 예시 살펴보기
+                  </button>
+                  {showWorkflowExample && (
+                    <div className="wf-example-panel wf-example-markdown">
+                      {workflowExample ? (
+                        <div className="wf-example-body">
+                          <ReactMarkdown>{workflowExample}</ReactMarkdown>
+                        </div>
+                      ) : (
+                        <p className="section-sub">예시를 불러오는 중입니다...</p>
+                      )}
+                    </div>
+                  )}
+                  <div className="section-block" style={{ marginTop: 16 }}>
+                    <p className="section-title">워크플로우 분석하기</p>
+                    <div className="ai-assist-box ai-box-split">
+                      <textarea
+                        className="wf-free-textarea"
+                        placeholder="현재 업무를 AI 적용 전(AS-IS) 기준으로, 실제 수행 순서대로 한 덩어리로 적어주세요."
+                        value={aiSplitInput}
+                        onChange={(e) => setAiSplitInput(e.target.value)}
+                        rows={4}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-primary"
+                        disabled={aiLoading}
+                        onClick={() => callAi('workflow_split')}
+                      >
+                        {aiLoading ? '처리 중…' : '단계로 쪼개기'}
+                      </button>
+                    </div>
                   </div>
                   <p className="section-label" style={{ marginTop: 16 }}>워크플로우 단계 (드래그하여 순서 변경)</p>
                   {steps.map((s, i) => (
@@ -736,38 +776,90 @@ export default function Home() {
 
               {preworkStep === 2 && (
                 <div className="section-block">
-                  <button type="button" className="btn btn-sm" style={{ marginBottom: 12 }} onClick={() => setPreworkStep(1)}>← 이전 단계 (워크플로우)</button>
                   <p className="section-title">2단계: 과제 후보</p>
                   <p className="section-sub step-guide">앞서 작성한 워크플로우를 참고하여 AI 제안을 받거나 직접 과제를 추가해 주세요.</p>
-                  {(prework.workflowSteps || []).length > 0 && (
-                    <div className="workflow-flowchart">
-                      <p className="section-label">참고: 작성한 워크플로우</p>
-                      <div className="flowchart-steps">
-                        {(prework.workflowSteps || []).slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map((s, i) => (
-                          <div key={s.id} className="flowchart-step">
-                            <span className="flowchart-step-n">{i + 1}</span>
-                            <div className="flowchart-step-body">
-                              <span className="flowchart-step-body-title">{s.title || '(제목 없음)'}</span>
-                              {s.desc && <span className="flowchart-step-desc">{s.desc}</span>}
-                            </div>
-                            {i < (prework.workflowSteps?.length || 0) - 1 && <span className="flowchart-arrow">↓</span>}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                   <div className="ai-assist-box ai-box-task">
-                    <button type="button" className="btn btn-sm btn-primary" disabled={aiLoading} onClick={() => callAi('task')}>{aiLoading ? '생성 중…' : 'AI 과제 제안 받기'}</button>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-primary"
+                      disabled={aiLoading}
+                      onClick={() => callAi('task')}
+                    >
+                      {aiLoading ? '생성 중…' : '워크플로우 기반으로 AI 과제 제안 받기'}
+                    </button>
                     {aiType === 'task' && aiResult && (
                       <div className="result">
                         <ReactMarkdown>{aiResult}</ReactMarkdown>
                       </div>
                     )}
                   </div>
+                  {(prework.workflowSteps || []).length > 0 && (
+                    <div className="workflow-flowchart">
+                      <button
+                        type="button"
+                        className="wf-reference-toggle"
+                        onClick={() => setShowWorkflowExample((v) => !v)}
+                      >
+                        📝 참고: 작성한 워크플로우
+                        <span className={`wf-ref-arrow ${showWorkflowExample ? 'open' : ''}`}>▼</span>
+                      </button>
+                      {showWorkflowExample && (
+                        <div className="wf-reference-panel">
+                          <ol className="flowchart-steps">
+                            {(prework.workflowSteps || [])
+                              .slice()
+                              .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+                              .map((s, i) => (
+                                <li key={s.id} style={{ marginBottom: 6 }}>
+                                  <strong>{i + 1}. {s.title || '(제목 없음)'}</strong>
+                                  {s.desc && <div className="flowchart-step-desc">{s.desc}</div>}
+                                </li>
+                              ))}
+                          </ol>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <div className="section-block" style={{ marginTop: 16 }}>
+                    <p className="section-title">과제 도출하기</p>
+                    <p className="section-sub">워크플로우와 AI 제안을 참고해 떠오르는 과제를 아래에 적어 보고, 「과제화하기」 버튼으로 아래 목록에 추가할 수 있습니다.</p>
+                    <textarea
+                      className="task-draft-textarea"
+                      rows={4}
+                      placeholder={'예)\n- 외부·사내 데이터 수집/정제 전 과정을 자동화해 리포트 작성 시간을 단축\n- 실시간 캠페인 성과 대시보드를 구축해 의사결정 속도 향상'}
+                      value={taskDraftText}
+                      onChange={(e) => setTaskDraftText(e.target.value)}
+                    />
+                    <div style={{ marginTop: 8, textAlign: 'right' }}>
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-sm"
+                        onClick={() => {
+                          const raw = (taskDraftText || '').trim();
+                          if (!raw) return;
+                          const lines = raw.split('\n').filter((l) => l.trim());
+                          if (lines.length === 0) return;
+                          const title = lines[0].replace(/^[-•]\s*/, '').trim();
+                          const desc = lines.slice(1).join('\n').trim();
+                          addTask('low');
+                          setPrework((p) => ({
+                            ...p,
+                            taskCandidates: [
+                              ...(p.taskCandidates || []),
+                              { id: id(), title, desc, level: 'low' },
+                            ],
+                          }));
+                          setTaskDraftText('');
+                        }}
+                      >
+                        과제화하기
+                      </button>
+                    </div>
+                  </div>
                   <div className="task-add-buttons">
                     <button type="button" className="btn btn-task-add" onClick={() => addTask('low')}>
                       <span className="btn-task-add-icon">+</span>
-                      <span>과제 추가</span>
+                      <span>과제 추가하기</span>
                     </button>
                   </div>
                   {(prework.taskCandidates || []).map((t) => (
