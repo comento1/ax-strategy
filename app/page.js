@@ -119,17 +119,28 @@ export default function Home() {
     return `s2:${dept}:${name}:${created}:${title}`;
   }, []);
 
-  const fetchSharedSession2Ideas = useCallback(async () => {
+  const fetchSharedSession2Ideas = useCallback(async (opts) => {
     const dept = (viewSession2Dept || department || '').trim();
     if (!dept) { setSharedSession2Ideas([]); return; }
+    const cacheBust = opts?.fresh ? `&_=${Date.now()}` : '';
     try {
-      const res = await fetch(`/api/prework?action=session2&department=${encodeURIComponent(dept)}`);
+      const res = await fetch(`/api/prework?action=session2&department=${encodeURIComponent(dept)}${cacheBust}`);
       const data = await res.json();
-      const ideas = Array.isArray(data?.ideas) ? data.ideas : [];
-      // 서버에서 이미 샘플 제거함. 클라이언트에서 다시 필터하면 등록 직후 행이 빠질 수 있으므로 그대로 표시.
-      setSharedSession2Ideas(ideas);
+      const fromServer = Array.isArray(data?.ideas) ? data.ideas : [];
+      setSharedSession2Ideas((prev) => {
+        const optimistic = (prev || []).filter((p) => p.rowIndex < 0);
+        if (optimistic.length === 0) return fromServer;
+        const merged = [...fromServer];
+        for (const opt of optimistic) {
+          const exists = fromServer.some(
+            (s) => (s.title || '').trim() === (opt.title || '').trim() && (s.asIs || '').trim() === (opt.asIs || '').trim()
+          );
+          if (!exists) merged.push(opt);
+        }
+        return merged;
+      });
     } catch {
-      setSharedSession2Ideas([]);
+      setSharedSession2Ideas((prev) => (prev || []).filter((p) => p.rowIndex < 0));
     }
   }, [viewSession2Dept, department]);
 
@@ -550,12 +561,11 @@ export default function Home() {
       if (Array.isArray(data.ideas) && data.ideas.length > 0) {
         setSharedSession2Ideas(data.ideas);
       } else {
-        // 응답에 목록이 없으면 재조회(시트 반영 후 조회)
-        await fetchSharedSession2Ideas();
-        setTimeout(() => fetchSharedSession2Ideas(), 800);
+        // 시트 반영 후 새로고침용 재조회(캐시 무효화). 병합 로직으로 방금 등록한 행은 유지됨.
+        setTimeout(() => fetchSharedSession2Ideas({ fresh: true }), 600);
       }
     } catch {
-      await fetchSharedSession2Ideas();
+      fetchSharedSession2Ideas({ fresh: true });
     }
   };
   const toggleIdeaSelected = async (idea, isSheetIdea) => {
