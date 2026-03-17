@@ -358,7 +358,9 @@ function doPost(e) {
       var lastRow = s2.getLastRow();
       if (rowIdx > lastRow) return jsonResponse({ error: 'rowIndex out of range' }, 400);
       s2.getRange(rowIdx, SESSION2_ICE_COL).setValue(selected ? 'Y' : '');
-      return jsonResponse({ ok: true });
+      var deptForIdeas = data.department != null ? String(data.department).trim() : '';
+      var ideas = getSession2IdeasFromSheet(s2, normalizeDept(deptForIdeas));
+      return jsonResponse({ ok: true, ideas: ideas });
     }
 
     if (data.action === 'session3_definitions') {

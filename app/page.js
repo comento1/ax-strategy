@@ -514,6 +514,25 @@ export default function Home() {
     if (!t) return;
     const asIsVal = (asIs || '').trim();
     const toBeVal = (toBe || '').trim();
+    const dept = (department || '').trim();
+    const pName = participantName || '익명';
+    const pPos = participantPosition || '';
+
+    // 낙관적 반영: 등록 직후 목록에 바로 추가해 표시 (시트 반영 전에도 보이도록)
+    const optimisticRow = {
+      rowIndex: -(Date.now()),
+      department: dept,
+      title: t,
+      asIs: asIsVal,
+      toBe: toBeVal,
+      desc: [asIsVal, toBeVal].filter(Boolean).join('\n\n'),
+      participantName: pName,
+      participantPosition: pPos,
+      iceSelected: false,
+      createdAt: new Date().toISOString(),
+      type: '',
+    };
+    setSharedSession2Ideas((prev) => [...prev, optimisticRow]);
 
     try {
       const res = await fetch('/api/prework', {
@@ -521,35 +540,49 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'session2',
-          department: (department || '').trim(),
-          participantName: participantName || '익명',
-          participantPosition: participantPosition || '',
+          department: dept,
+          participantName: pName,
+          participantPosition: pPos,
           items: [{ title: t, asIs: asIsVal, toBe: toBeVal, desc: [asIsVal, toBeVal].filter(Boolean).join('\n\n') }],
         }),
       });
       const data = await res.json().catch(() => ({}));
-      // 등록 응답에 해당 본부 아이디어 목록이 있으면 그대로 사용 → 시트 반영 직후 바로 표시
-      if (Array.isArray(data.ideas)) {
+      if (Array.isArray(data.ideas) && data.ideas.length > 0) {
         setSharedSession2Ideas(data.ideas);
       } else {
+        // 응답에 목록이 없으면 재조회(시트 반영 후 조회)
         await fetchSharedSession2Ideas();
+        setTimeout(() => fetchSharedSession2Ideas(), 800);
       }
     } catch {
-      // 실패 시 시트 반영 안 됨
+      await fetchSharedSession2Ideas();
     }
   };
   const toggleIdeaSelected = async (idea, isSheetIdea) => {
     if (isSheetIdea && idea.rowIndex != null) {
       const nextSelected = !idea.iceSelected;
+      // 낙관적 반영: 버튼 상태 즉시 변경
+      setSharedSession2Ideas((prev) =>
+        prev.map((r) => (r.rowIndex === idea.rowIndex ? { ...r, iceSelected: nextSelected } : r))
+      );
       try {
-        await fetch('/api/prework', {
+        const res = await fetch('/api/prework', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'session2_select', rowIndex: idea.rowIndex, selected: nextSelected }),
+          body: JSON.stringify({
+            action: 'session2_select',
+            rowIndex: idea.rowIndex,
+            selected: nextSelected,
+            department: (idea.department || department || '').trim(),
+          }),
         });
-        await fetchSharedSession2Ideas();
+        const data = await res.json().catch(() => ({}));
+        if (Array.isArray(data.ideas)) {
+          setSharedSession2Ideas(data.ideas);
+        } else {
+          fetchSharedSession2Ideas();
+        }
       } catch {
-        // 실패 시 재조회로 복구
         fetchSharedSession2Ideas();
       }
       return;
@@ -576,13 +609,13 @@ export default function Home() {
 
   const priorityRanks = session1.priorityRanks || {};
   const finalTasks = (() => {
-    const onlyRanked123 = tasksForIceRaw
+    const onlyRanked15 = tasksForIceRaw
       .filter((t) => {
         const r = priorityRanks[t.id];
-        return r === 1 || r === 2 || r === 3;
+        return r >= 1 && r <= 5;
       })
       .sort((a, b) => (priorityRanks[a.id] || 99) - (priorityRanks[b.id] || 99));
-    return onlyRanked123.filter((t) => !isSampleTitle(t.title));
+    return onlyRanked15.filter((t) => !isSampleTitle(t.title));
   })();
 
   const updateDef = (taskId, field, value) => {
@@ -1104,7 +1137,7 @@ export default function Home() {
             <span className="icon">1</span>
             <div>
               <p className="title">세션 1 — 워크플로우 기반 실행 가능 과제로 전환</p>
-              <p className="body">본부(<strong>{department}</strong>) 내에서 제출된 사전과제를 검토하고, ICE 정량 평가 후 1~3순위를 부여하세요.</p>
+              <p className="body">본부(<strong>{department}</strong>) 내에서 제출된 사전과제를 검토하고, ICE 정량 평가 후 1~5순위를 부여하세요.</p>
             </div>
           </div>
           <div className="section-block session1-section">
@@ -1215,7 +1248,7 @@ export default function Home() {
             <span className="icon">2</span>
             <div>
               <p className="title">세션 2 — 아이디어 발산</p>
-              <p className="body">아이디어를 작성한 뒤 등록하고, 「과제 리스트에 추가하기」 버튼으로 ICE 정량 평가 대상으로 올려 주세요. ICE에서 1~3순위를 부여한 과제만 세션 3에 반영됩니다.</p>
+              <p className="body">아이디어를 작성한 뒤 등록하고, 「과제 리스트에 추가하기」 버튼으로 ICE 정량 평가 대상으로 올려 주세요. ICE에서 1~5순위를 부여한 과제만 세션 3에 반영됩니다.</p>
             </div>
           </div>
           <div className="view-dept-wrap" style={{ marginBottom: 14 }}>
@@ -1286,7 +1319,7 @@ export default function Home() {
                 <h3 style={{ margin: 0 }}>ICE 정량 평가</h3>
                 <button type="button" className="btn btn-sm" onClick={() => setSession2Step('ideas')}>← 아이디어 선정으로</button>
               </div>
-              <p className="section-sub">세션1·2에서 도출한 과제에 대해 1~10점을 부여하고, 1·2·3순위를 선택하세요. ICE 점수 높은 순으로 정렬됩니다.</p>
+              <p className="section-sub">세션1·2에서 도출한 과제에 대해 1~10점을 부여하고, 1~5순위를 선택하세요. ICE 점수 높은 순으로 정렬됩니다.</p>
             <ul className="ice-criteria-list">
               <li><strong>전략 부합도</strong> — 임원진이 규명한 조직 문제를 해결하는가?</li>
               <li><strong>구현 가능성</strong> — 사내 보안·인프라 환경 내에서 구현 가능한가?</li>
@@ -1333,6 +1366,8 @@ export default function Home() {
                           <option value="1">1순위</option>
                           <option value="2">2순위</option>
                           <option value="3">3순위</option>
+                          <option value="4">4순위</option>
+                          <option value="5">5순위</option>
                         </select>
                       </td>
                     </tr>
@@ -1386,12 +1421,12 @@ export default function Home() {
               <span className="icon">3</span>
               <div>
                 <p className="title">세션 3 — 과제 리스트 및 과업인계서</p>
-                <p className="body">1~3순위로 선정한 과제를 선택하면 과제정의서를 작성할 수 있습니다. 임원진 내용·워크플로우를 참고해 실무 인계에 활용하세요.</p>
+                <p className="body">1~5순위로 선정한 과제를 선택하면 과제정의서를 작성할 수 있습니다. 임원진 내용·워크플로우를 참고해 실무 인계에 활용하세요.</p>
               </div>
             </div>
             <div className="section-block">
-              <h3>전체 과제 리스트 (1~3순위)</h3>
-              {finalTasks.length === 0 && <p className="section-sub">세션 1에서 순위를 부여한 과제가 여기에 표시됩니다.</p>}
+              <h3>전체 과제 리스트 (1~5순위)</h3>
+              {finalTasks.length === 0 && <p className="section-sub">세션 2 ICE에서 1~5순위를 부여한 과제가 여기에 표시됩니다.</p>}
               {finalTasks.map((t, i) => (
                 <div key={t.id} className="task-card task-card-clickable" onClick={() => setSession3SelectedTaskId(t.id)} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && setSession3SelectedTaskId(t.id)}>
                   <div className="task-dot" />
